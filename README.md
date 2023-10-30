@@ -1,14 +1,13 @@
 # Project
 
-> This repo has been populated by an initial template to help get you started. Please
-> make sure to update the content to build a great experience for community-building.
+## Usage
+> windowsblobnfs.ps1 -action "installwsl"
 
-As the maintainer of this project, please make a few updates:
+> windowsblobnfs.ps1 -action "setupwslenv"
 
-- Improving this README.MD file to provide a great experience
-- Updating SUPPORT.MD with content about this project's support experience
-- Understanding the security reporting process in SECURITY.MD
-- Remove this section from the README
+> windowsblobnfs.ps1 -action "mountshare" -mountcommand "mount -t nfs -o vers=3,proto=tcp account-name.blob.core.windows.net:/account-name/container-name /mnt/path" -mountdrive "drive:"
+
+> windowsblobnfs.ps1 -action "unmountshare" -mountdrive "drive:"
 
 ## Contributing
 

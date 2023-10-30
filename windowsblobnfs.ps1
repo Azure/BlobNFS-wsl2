@@ -49,6 +49,7 @@ if($action -eq "installwsl")
 else
 {
 
+# To-do: Copy only if the file is not present or if the file is modified.
 # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
 wsl -d Ubuntu-22.04 -u root -e bash -c "mkdir -p /root/scripts; cp wsl2-linux-script.sh /root/scripts/wsl2-linux-script.sh; sed -i -e 's/\r$//' /root/scripts/wsl2-linux-script.sh; chmod +x /root/scripts/wsl2-linux-script.sh"
 
