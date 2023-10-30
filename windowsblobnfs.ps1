@@ -78,9 +78,6 @@ if( $action -eq "setupwslenv" )
 
     Write-Host "Setting up the WSL environment for your BlobNFS usage."
 
-    # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
-    wsl -d Ubuntu-22.04 -u root -e bash -c "mkdir -p /root/scripts; cp wsl2-linux-script.sh /root/scripts/wsl2-linux-script.sh; sed -i -e 's/\r$//' /root/scripts/wsl2-linux-script.sh; chmod +x /root/scripts/wsl2-linux-script.sh"
-
     # wsl --setdefault Ubuntu-22.04
 
     # Install systemd, restart wsl and install nfs and samba
@@ -159,6 +156,7 @@ elseif( $action -eq "unmountshare" )
         exit
     }
 
+    # To-do: If unmount fails then, don't remove the smb mapping.
     wsl -d Ubuntu-22.04 -u root /root/scripts/wsl2-linux-script.sh "unmountshare" "$smbexportname"
 
     Remove-SmbMapping -LocalPath "$mountdrive"

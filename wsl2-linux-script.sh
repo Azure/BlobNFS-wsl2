@@ -44,8 +44,8 @@ function install_samba ()
 function onetime_samba_setup ()
 {
     # Set username as the password
-    # To-do: Pass the password as an argument
     echo "Note: Samba password for $1 is same as the username. This makes it easier to mount shares."
+    # remove "Added user $1" message
     echo -ne "$1\n$1" | tee - | smbpasswd -a -s $1
 }
 
@@ -69,6 +69,8 @@ function mount_nfs ()
 
 # Unmount smb share and NFS share
 # $1: export name
+# To-do:
+# 1. Take a lock on the smb file
 function unmount_share ()
 {
     mntpath=""
@@ -99,18 +101,6 @@ function unmount_share ()
         if [[ $foundshare == "true" && "$line" == "path"* ]]; then
             # Split the line into tokens
             read -r pathstr eq mntpath <<< "$line"
-            # check if the last element is a path
-            if [[ ${mntpath:0:1} == "/" ]]; then
-                # check if the path exists
-                if [[ -d $mntpath ]]; then
-                    umount $mntpath
-                    echo "Unmounted NFS mount at: $mntpath"
-                else
-                    echo "Mount point $mntpath does not exist"
-                fi
-            else
-                echo "Mount point $mntpath is not a path"
-            fi
         fi
     done < /etc/samba/smb.conf
 
@@ -124,8 +114,27 @@ function unmount_share ()
         # Remove the share details from smb.conf
         sed -i "$startline,$endline d" /etc/samba/smb.conf
         echo "Removed SMB share with: $1."
+
+        # Restart Samba so that we can unmount the NFS share, else we get "device is busy" error
+        service smbd restart > /dev/null
     else
         echo "No SMB share found for $1."
+    fi
+
+    # To-do: copy smb.conf to smb.conf.bak and then remove the share details from smb.conf
+    # so that, if the script fails, the smb.conf can be restored from smb.conf.bak
+
+    # check if the last element is a path
+    if [[ ${mntpath:0:1} == "/" ]]; then
+        # check if the path exists
+        if [[ -d $mntpath ]]; then
+            umount $mntpath
+            echo "Unmounted NFS mount at: $mntpath"
+        else
+            echo "Mount point $mntpath does not exist"
+        fi
+    else
+        echo "Mount point $mntpath is not a path"
     fi
 }
 
