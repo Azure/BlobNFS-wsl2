@@ -7,7 +7,7 @@ param(
     [ValidateSet("installwsl", "setupwslenv", "mountshare", "unmountshare")]
     [string]$action,
     [string]$mountcommand,
-    [string]$mountdrive,
+    [string]$mountdrive
     # [string]$linuxusername
 )
 
@@ -36,10 +36,15 @@ if($action -eq "installwsl")
     Write-Host "Restart the VM and run the script again with setupwslenv action and a linux system username to continue the wsl setup."
     exit
 }
+else
+{
+
+# Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
+wsl -d Ubuntu-22.04 -u root -e bash -c "mkdir -p /root/scripts; cp wsl2-linux-script.sh /root/scripts/wsl2-linux-script.sh; sed -i -e 's/\r$//' /root/scripts/wsl2-linux-script.sh; chmod +x /root/scripts/wsl2-linux-script.sh"
 
 # Run the script with setupwslenv argument
 # To-do: Automate to start this on startup.
-elseif( $action -eq "setupwslenv" )
+if( $action -eq "setupwslenv" )
 {
     # # linuxusername is mandatory arguments for onetimesetup
     # if([string]::IsNullOrWhiteSpace($linuxusername))
@@ -144,9 +149,10 @@ elseif( $action -eq "unmountshare" )
         exit
     }
 
-    Write-Host "Unmounting $mountcommand."
+    Write-Host "Unmounting $smbexportname."
     wsl -d Ubuntu-22.04 -u root /root/scripts/wsl2-linux-script.sh "unmountshare" "$smbexportname"
 
     Remove-SmbMapping -LocalPath "$mountdrive"
     Write-Host "Unmounting smb share done."
+}
 }

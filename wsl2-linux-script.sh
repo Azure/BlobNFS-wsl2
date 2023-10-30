@@ -56,6 +56,8 @@ function onetime_samba_setup ()
 ##################################################################
 
 # Mount NFS
+# $1: mount command
+# To-do: Return the result of the mount command
 function mount_nfs ()
 {
     echo "Got $# number of args: $*"
@@ -70,6 +72,7 @@ function mount_nfs ()
 function unmount_share ()
 {
     mntpath=""
+    foundshare=false
     startline=0
     endline=0
     linenum=0
@@ -77,7 +80,7 @@ function unmount_share ()
     # Take the last matching share name
     while IFS= read -r line; do
         # line number counter
-        ((linenum++))
+        linenum=$((linenum + 1))
 
         # exact match of the share name
         if [[ "$line" == "[$1]" ]]; then
@@ -87,13 +90,13 @@ function unmount_share ()
         # next share name after the target share
         elif [[ $foundshare == "true" && "$line" == "["*"]" ]]; then
             foundshare=false
-            endline=$linenum
+            # Current line belongs to a new share. So, the previous line is the end of the share
+            endline=$((linenum - 1))
         fi
 
         # If the path is found, get the path of the share and remove the share details from smb.conf
         # Sample line: path = /mnt/nfs/share1
         if [[ $foundshare == "true" && "$line" == "path"* ]]; then
-            foundshare=false
             # Split the line into tokens
             read -r pathstr eq mntpath <<< "$line"
             # check if the last element is a path
@@ -112,12 +115,18 @@ function unmount_share ()
     done < /etc/samba/smb.conf
 
     # Sometimes the share is the last share in the file, so endline is not set
-    if [[ $endline == 0 ]]; then
+    if [[ $foundshare == "true" && $endline == 0 ]]; then
+        # Last line in the file is the endline
         endline=$linenum
     fi
 
-    # Remove the share details from smb.conf
-    sed -i "$startline,$endline d" /etc/samba/smb.conf
+    if [[ $startline < $endline ]]; then
+        # Remove the share details from smb.conf
+        sed -i "$startline,$endline d" /etc/samba/smb.conf
+        echo "Removed SMB share."
+    else
+        echo "No SMB share found for $1."
+    fi
 }
 
 
@@ -189,6 +198,7 @@ elif [[ $1 == "mountshare" ]]; then
     export_via_samba "$3" "$mountpoint"
     echo "Done Samba exporting."
 
+# if the first argument is unmountshare, then unmount smb and nfs shares
 elif [[ $1 == "unmountshare" ]]; then
     echo "Got $# number of args: $*"
     unmount_share $2
