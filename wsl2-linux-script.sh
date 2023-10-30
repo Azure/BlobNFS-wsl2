@@ -103,8 +103,8 @@ function unmount_share ()
             if [[ ${mntpath:0:1} == "/" ]]; then
                 # check if the path exists
                 if [[ -d $mntpath ]]; then
-                    echo "Unmounting $mntpath"
                     umount $mntpath
+                    echo "Unmounted NFS mount at: $mntpath"
                 else
                     echo "Mount point $mntpath does not exist"
                 fi
@@ -123,7 +123,7 @@ function unmount_share ()
     if [[ $startline < $endline ]]; then
         # Remove the share details from smb.conf
         sed -i "$startline,$endline d" /etc/samba/smb.conf
-        echo "Removed SMB share."
+        echo "Removed SMB share with: $1."
     else
         echo "No SMB share found for $1."
     fi
@@ -209,4 +209,5 @@ else
     echo "Usage: $0 <installsystemd>"
     echo "Usage: $0 <installnfssmb> <samba username>"
     echo "Usage: $0 <mountshare> <mount command>"
+    echo "Usage: $0 <unmountshare> <smbsharename>"
 fi

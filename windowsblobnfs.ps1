@@ -3,6 +3,7 @@
 
 param(
     # The first argument is the action to be performed
+    # To-do: Add support for cleanup and mountmappings
     [Parameter(Mandatory)]
     [ValidateSet("installwsl", "setupwslenv", "mountshare", "unmountshare")]
     [string]$action,
@@ -33,7 +34,16 @@ if($action -eq "installwsl")
     # # add the user to sudo group
     # wsl -d Ubuntu-22.04 -u root usermod -aG sudo $linuxusername
 
-    Write-Host "Restart the VM and run the script again with setupwslenv action and a linux system username to continue the wsl setup."
+    # ask user if the username was setup
+    $usernameSetup = Read-Host "Was the wsl distro username setup? (y/n)"
+    if($usernameSetup -eq "y")
+    {
+        Write-Host "Run the script again with setupwslenv action to continue the wsl setup."
+    }
+    else
+    {
+        Write-Host "Restart the VM to complete wsl installation, and then Run the script again with setupwslenv action to continue the wsl setup."
+    }
     exit
 }
 else
@@ -149,7 +159,6 @@ elseif( $action -eq "unmountshare" )
         exit
     }
 
-    Write-Host "Unmounting $smbexportname."
     wsl -d Ubuntu-22.04 -u root /root/scripts/wsl2-linux-script.sh "unmountshare" "$smbexportname"
 
     Remove-SmbMapping -LocalPath "$mountdrive"
