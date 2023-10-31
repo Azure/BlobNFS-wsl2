@@ -1,13 +1,33 @@
 # Project
 
+## Overview
+This project is a collection of helper scripts to help you setup a Windows Subsystem for Linux (WSL) environment to mount Azure Blob NFS storage containers and export them to Windows via Samba.
+
+> **Note**
+> This is work in progress. Please check back for updates.
+
 ## Usage
-> windowsblobnfs.ps1 -action "installwsl"
 
-> windowsblobnfs.ps1 -action "setupwslenv"
+Install WSL on windows:  
+```powershell
+windowsblobnfs.ps1 -action "installwsl" 
+```
 
-> windowsblobnfs.ps1 -action "mountshare" -mountcommand "mount -t nfs -o vers=3,proto=tcp account-name.blob.core.windows.net:/account-name/container-name /mnt/path" -mountdrive "drive:"
+Setup WSL environment (Installing Ubuntu-22.04 distro, systemd, NFS client, & samba server):  
 
-> windowsblobnfs.ps1 -action "unmountshare" -mountdrive "drive:"
+```powershell
+windowsblobnfs.ps1 -action "setupwslenv"
+```
+
+Mount blob nfs storage container to WSL and export it to windows via Samba:  
+```powershell
+windowsblobnfs.ps1 -action "mountshare" -mountcommand "mount -t nfs -o vers=3,proto=tcp {account-name}.blob.core.windows.net:/{account-name}/{container-name} /mnt/{path}" -mountdrive "{drive}:"
+```
+
+Unmount Samba share and blob nfs storage container from WSL:  
+```powershell
+windowsblobnfs.ps1 -action "unmountshare" -mountdrive "{drive}:"
+```
 
 ## Contributing
 
