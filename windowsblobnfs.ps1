@@ -43,23 +43,25 @@ else
         exit
     }
     # Check if Ubuntu-22.04 is installed or not.
-    else
-    {
-        $wslstatus = $wslstatus | Select-String -Pattern "Ubuntu-22.04"
-        if(True)
-        {
-            Write-Host "Ubuntu-22.04 is not installed. Installing Ubuntu-22.04..."
-            wsl --install Ubuntu-22.04
-        }
+    # else
+    # {
+    #     $ubuntustatus = $wslstatus | Select-String -Pattern "Ubuntu-22.04"
 
-        # ask user if the username was setup
-        $usernameSetup = Read-Host "Was the wsl distro username setup? (y/n)"
-        if($usernameSetup -ne "y")
-        {
-            Write-Host "Restart the VM to complete wsl installation, and then Run the script again with setupwslenv action to continue the wsl setup."
-            exit
-        }
-    }
+    #     # To-do: Check the wsl status
+    #     if($true)
+    #     {
+    #         Write-Host "Ubuntu-22.04 is not installed. Installing Ubuntu-22.04..."
+    #         wsl --install Ubuntu-22.04
+    #     }
+
+    #     # ask user if the username was setup
+    #     $usernameSetup = Read-Host "Was the wsl distro username setup? (y/n)"
+    #     if($usernameSetup -ne "y")
+    #     {
+    #         Write-Host "Restart the VM to complete wsl installation, and then Run the script again with setupwslenv action to continue the wsl setup."
+    #         exit
+    #     }
+    # }
 
     # wsl shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
     # Check the issue here:
@@ -77,6 +79,17 @@ else
     # To-do: Automate to start this on startup.
     if( $action -eq "setupwslenv" )
     {
+        Write-Host "Ubuntu-22.04 is not installed. Installing Ubuntu-22.04..."
+        wsl --install Ubuntu-22.04
+
+        # ask user if the username was setup
+        $usernameSetup = Read-Host "Was the wsl distro username setup? (y/n)"
+        if($usernameSetup -ne "y")
+        {
+            Write-Host "Restart the VM to complete wsl installation, and then Run the script again with setupwslenv action to continue the wsl setup."
+            exit
+        }
+
         Write-Host "Setting up the WSL environment for your BlobNFS usage."
 
         # Install systemd, restart wsl and install nfs and samba

@@ -63,7 +63,13 @@ function mount_nfs ()
     echo "Got $# number of args: $*"
     # execute the mount command passed as the first argument
     $1
-    # To-do: change read ahead to 16MB
+
+    # Set the read ahead to 16MB
+    echo "Setting read ahead to 16MB"
+    cd $2
+    echo 16384 > /sys/class/bdi/0:$(stat -c "%d" .)/read_ahead_kb
+    cd -
+
     echo "Mounted NFS share."
 }
 
@@ -200,7 +206,7 @@ elif [[ $1 == "mountshare" ]]; then
     echo "Mounting NFS share.."
 
     # quote the mount command to preserve the spaces
-    mount_nfs "$2"
+    mount_nfs "$2" "$mountpoint"
     echo "Done NFS mounting."
 
     echo "Exporting NFS share via Samba.."
