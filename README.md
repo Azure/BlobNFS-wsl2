@@ -7,26 +7,33 @@ This project is a collection of helper scripts to help you setup a Windows Subsy
 > This is work in progress. Please check back for updates.
 
 ## Usage
+Follow the below steps:
 
-Install WSL on windows:  
+1. Install WSL on windows:  
 ```powershell
 windowsblobnfs.ps1 -action "installwsl" 
 ```
 
-Setup WSL environment (Installing Ubuntu-22.04 distro, systemd, NFS client, & samba server):  
+2. Restart the machine if wsl is installed for the first time. Then, Setup WSL environment (Installing Ubuntu-22.04 distro, systemd, NFS client, & samba server):  
 
 ```powershell
 windowsblobnfs.ps1 -action "setupwslenv"
 ```
 
-Mount blob nfs storage container to WSL and export it to windows via Samba:  
+3. Mount blob nfs storage container to WSL and export it via Samba on the specified drive that you can access from windows:  
 ```powershell
-windowsblobnfs.ps1 -action "mountshare" -mountcommand "mount -t nfs -o vers=3,proto=tcp {account-name}.blob.core.windows.net:/{account-name}/{container-name} /mnt/{path}" -mountdrive "{drive}:"
+windowsblobnfs.ps1 -action "mountshare" -mountcommand "mount -t nfs -o vers=3,proto=tcp <account-name>.blob.core.windows.net:/<account-name>/<container-name> /mnt/<path>" -mountdrive "<drive>:"
 ```
 
-Unmount Samba share and blob nfs storage container from WSL:  
+You can check the status of the mount by running the following command:  
 ```powershell
-windowsblobnfs.ps1 -action "unmountshare" -mountdrive "{drive}:"
+Get-SmbMapping
+```
+
+
+To remove the drive from windows and blob nfs storage container from WSL:  
+```powershell
+windowsblobnfs.ps1 -action "unmountshare" -mountdrive "<drive>:"
 ```
 
 ## Contributing
