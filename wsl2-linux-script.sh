@@ -47,6 +47,9 @@ function onetime_samba_setup ()
     echo "Note: Samba password for $1 is same as the username. This makes it easier to mount shares."
     # remove "Added user $1" message
     echo -ne "$1\n$1" | tee - | smbpasswd -a -s $1
+
+    # Add get quota script to the Samba global config
+    sed -i "/\[global\]/ a get quota command = $(dirname -- $0)/query_quota.sh" /etc/samba/smb.conf
 }
 
 ##################################################################

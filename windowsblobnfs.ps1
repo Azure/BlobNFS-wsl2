@@ -73,7 +73,15 @@ else
 
     # To-do: Copy only if the file is not present or if the file is modified.
     # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
-    wsl -d Ubuntu-22.04 -u root -e bash -c "mkdir -p /root/scripts; cp wsl2-linux-script.sh /root/scripts/wsl2-linux-script.sh; sed -i -e 's/\r$//' /root/scripts/wsl2-linux-script.sh; chmod +x /root/scripts/wsl2-linux-script.sh"
+    wsl -d Ubuntu-22.04 -u root -e bash -c "mkdir -p /root/scripts"
+
+    wsl -d Ubuntu-22.04 -u root -e bash -c "cp wsl2-linux-script.sh /root/scripts/wsl2-linux-script.sh"
+    wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' /root/scripts/wsl2-linux-script.sh"
+    wsl -d Ubuntu-22.04 -u root -e bash -c "chmod +x /root/scripts/wsl2-linux-script.sh"
+
+    wsl -d Ubuntu-22.04 -u root -e bash -c "cp query_quota.sh /root/scripts/query_quota.sh"
+    wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' /root/scripts/query_quota.sh"
+    wsl -d Ubuntu-22.04 -u root -e bash -c "chmod +x /root/scripts/query_quota.sh"
 
     # Run the script with setupwslenv argument
     # To-do: Automate to start this on startup.
@@ -129,7 +137,7 @@ else
         $ipaddress = $ipaddress.Trim()
         Write-Host "Mounting smb share \\$ipaddress\$smbexportname onto windows mount point $mountdrive"
 
-        New-SmbMapping -LocalPath "$mountdrive" -RemotePath "\\$ipaddress\$smbexportname" -UserName "$linuxusername" -Password "$password"
+        net use $mountdrive "\\$ipaddress\$smbexportname" /persistent:yes /user:$linuxusername $password
         Write-Host "Mounting smb share done."
     }
 
@@ -166,7 +174,7 @@ else
         # To-do: If unmount fails then, don't remove the smb mapping.
         wsl -d Ubuntu-22.04 -u root /root/scripts/wsl2-linux-script.sh "unmountshare" "$smbexportname"
 
-        Remove-SmbMapping -LocalPath "$mountdrive"
+        net use $mountdrive /delete
         Write-Host "Unmounting smb share done."
     }
 }
