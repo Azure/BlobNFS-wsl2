@@ -21,7 +21,7 @@ if($action -eq "installwsl")
 {
     # Check if wsl is installed or not. Fail if wsl is not installed.
     $wslstatus = wsl -l -v
-    if($LASTEXITCODE -eq -1)
+    if($LASTEXITCODE -eq 1)
     {
         Write-Host "wsl is not installed. Installing wsl..."
 
@@ -31,13 +31,15 @@ if($action -eq "installwsl")
         Write-Host "Restart the VM to complete wsl installation, and then Run the script again with setupwslenv action to continue the wsl setup."
         exit
     }
+
+    Write-Host "wsl is already installed. Skipping wsl installation."
     exit
 }
 else
 {
     # Check if wsl is installed or not. Fail if wsl is not installed.
     $wslstatus = wsl -l -v
-    if($LASTEXITCODE -eq -1)
+    if($LASTEXITCODE -eq 1)
     {
         Write-Host "wsl is not installed. Please run the script with installwsl action to install wsl first."
         exit
