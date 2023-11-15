@@ -25,13 +25,10 @@ if($action -eq "installwsl")
     {
         Write-Host "wsl is not installed. Installing wsl..."
 
-        # Installing just wsl is necessary.
-        # wsl --install Ubuntu-22.04 will fail if wsl is not installed.
-        wsl --install
+        wsl --install -d Ubuntu-22.04
         Write-Host "Restart the VM to complete wsl installation, and then Run the script again with setupwslenv action to continue the wsl setup."
         exit
     }
-
     Write-Host "wsl is already installed. Skipping wsl installation."
     exit
 }
@@ -44,63 +41,40 @@ else
         Write-Host "wsl is not installed. Please run the script with installwsl action to install wsl first."
         exit
     }
-    # Check if Ubuntu-22.04 is installed or not.
-    # else
-    # {
-    #     $ubuntustatus = $wslstatus | Select-String -Pattern "Ubuntu-22.04"
-
-    #     # To-do: Check the wsl status
-    #     if($true)
-    #     {
-    #         Write-Host "Ubuntu-22.04 is not installed. Installing Ubuntu-22.04..."
-    #         wsl --install Ubuntu-22.04
-    #     }
-
-    #     # ask user if the username was setup
-    #     $usernameSetup = Read-Host "Was the wsl distro username setup? (y/n)"
-    #     if($usernameSetup -ne "y")
-    #     {
-    #         Write-Host "Restart the VM to complete wsl installation, and then Run the script again with setupwslenv action to continue the wsl setup."
-    #         exit
-    #     }
-    # }
-
-    # wsl shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
-    # Check the issue here:
-    # https://github.com/microsoft/WSL/issues/10138
-
-    # To-do: Check if dbus is already running or not.
-    # dbus[488]: Unable to set up transient service directory: XDG_RUNTIME_DIR "/run/user/0/" is owned by uid 1000, not our uid 0
-    wsl -d Ubuntu-22.04 -u root --exec dbus-launch true
-
-    # To-do: Copy only if the file is not present or if the file is modified.
-    # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
-    wsl -d Ubuntu-22.04 -u root -e bash -c "mkdir -p /root/scripts"
-
-    wsl -d Ubuntu-22.04 -u root -e bash -c "cp wsl2-linux-script.sh /root/scripts/wsl2-linux-script.sh"
-    wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' /root/scripts/wsl2-linux-script.sh"
-    wsl -d Ubuntu-22.04 -u root -e bash -c "chmod +x /root/scripts/wsl2-linux-script.sh"
-
-    wsl -d Ubuntu-22.04 -u root -e bash -c "cp query_quota.sh /root/scripts/query_quota.sh"
-    wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' /root/scripts/query_quota.sh"
-    wsl -d Ubuntu-22.04 -u root -e bash -c "chmod +x /root/scripts/query_quota.sh"
 
     # Run the script with setupwslenv argument
     # To-do: Automate to start this on startup.
     if( $action -eq "setupwslenv" )
     {
-        Write-Host "Ubuntu-22.04 is not installed. Installing Ubuntu-22.04..."
-        wsl --install Ubuntu-22.04
+
+        Write-Host "Installing Ubuntu-22.04..."
+        wsl --install -d Ubuntu-22.04
 
         # ask user if the username was setup
         $usernameSetup = Read-Host "Was the wsl distro username setup? (y/n)"
         if($usernameSetup -ne "y")
         {
-            Write-Host "Restart the VM to complete wsl installation, and then Run the script again with setupwslenv action to continue the wsl setup."
+            Write-Host "Restart the VM to complete wsl installation, and then run the script again with setupwslenv action to continue the wsl setup."
             exit
         }
 
         Write-Host "Setting up the WSL environment for your BlobNFS usage."
+
+        # wsl shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
+        # Check the issue here:
+        # https://github.com/microsoft/WSL/issues/10138
+
+        # To-do: Copy only if the file is not present or if the file is modified.
+        # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
+        wsl -d Ubuntu-22.04 -u root -e bash -c "mkdir -p /root/scripts"
+
+        wsl -d Ubuntu-22.04 -u root -e bash -c "cp wsl2-linux-script.sh /root/scripts/wsl2-linux-script.sh"
+        wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' /root/scripts/wsl2-linux-script.sh"
+        wsl -d Ubuntu-22.04 -u root -e bash -c "chmod +x /root/scripts/wsl2-linux-script.sh"
+
+        wsl -d Ubuntu-22.04 -u root -e bash -c "cp query_quota.sh /root/scripts/query_quota.sh"
+        wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' /root/scripts/query_quota.sh"
+        wsl -d Ubuntu-22.04 -u root -e bash -c "chmod +x /root/scripts/query_quota.sh"
 
         # Install systemd, restart wsl and install nfs and samba
         wsl -d Ubuntu-22.04 -u root /root/scripts/wsl2-linux-script.sh installsystemd
@@ -110,10 +84,13 @@ else
         wsl -d Ubuntu-22.04 --shutdown
 
         # wsl shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
+        # To-do: Check if dbus is already running or not.
+        # dbus[488]: Unable to set up transient service directory: XDG_RUNTIME_DIR "/run/user/0/" is owned by uid 1000, not our uid 0
         wsl -d Ubuntu-22.04 -u root --exec dbus-launch true
 
         wsl -d Ubuntu-22.04 -u root /root/scripts/wsl2-linux-script.sh installnfssmb $linuxusername
         Write-Host "Installed nfs & smb."
+        exit
     }
 
     elseif( $action -eq "mountshare" )
