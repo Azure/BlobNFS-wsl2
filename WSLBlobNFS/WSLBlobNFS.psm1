@@ -67,11 +67,14 @@ function Initialize-WSLBlobNFS
     # Powershell 3+ is require for $PSScriptRoot
     $blobNFSPath = ("/mnt/" + ($PSScriptRoot.Replace("\", "/").Replace(":", ""))).ToLower()
 
-    wsl -d Ubuntu-22.04 -u root -e bash -c "cp $blobNFSPath/wsl2_linux_script.sh /root/scripts/wsl2_linux_script.sh"
+    # Quote the path with '' to preserve space
+    Write-Host "Copying necessary linux files from $blobNFSPath"
+
+    wsl -d Ubuntu-22.04 -u root -e bash -c "cp '$blobNFSPath/wsl2_linux_script.sh' /root/scripts/wsl2_linux_script.sh"
     wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' /root/scripts/wsl2_linux_script.sh"
     wsl -d Ubuntu-22.04 -u root -e bash -c "chmod +x /root/scripts/wsl2_linux_script.sh"
 
-    wsl -d Ubuntu-22.04 -u root -e bash -c "cp $blobNFSPath/query_quota.sh /root/scripts/query_quota.sh"
+    wsl -d Ubuntu-22.04 -u root -e bash -c "cp '$blobNFSPath/query_quota.sh' /root/scripts/query_quota.sh"
     wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' /root/scripts/query_quota.sh"
     wsl -d Ubuntu-22.04 -u root -e bash -c "chmod +x /root/scripts/query_quota.sh"
 
