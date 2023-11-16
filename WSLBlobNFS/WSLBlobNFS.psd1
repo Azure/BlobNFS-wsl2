@@ -13,7 +13,7 @@ RootModule = 'WSLBlobNFS.psm1'
 
 # Version number of this module.
 # To-do: Proper versioning of the script.
-ModuleVersion = '1.0'
+ModuleVersion = '1.0.1'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
