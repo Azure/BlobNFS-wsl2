@@ -1,7 +1,9 @@
 # Set the execution policy to appropriate value to run the script
 # Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope CurrentUser
 
-# To-do: Add support for cleanup and mountmappings
+# To-do:
+# 1. Add support for cleanup and mountmappings
+# 2. Add tests for the module using Pester
 
 function Install-WSLBlobNFS
 {
