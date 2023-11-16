@@ -62,6 +62,7 @@ function Initialize-WSLBlobNFS
     # $p += ":blobNFSPath/p"
     # [Environment]::SetEnvironmentVariable("WSLENV",$p)
 
+    # Powershell 3+ is require for $PSScriptRoot
     $blobNFSPath = ("/mnt/" + ($PSScriptRoot.Replace("\", "/").Replace(":", ""))).ToLower()
 
     wsl -d Ubuntu-22.04 -u root -e bash -c "cp $blobNFSPath/wsl2_linux_script.sh /root/scripts/wsl2_linux_script.sh"
