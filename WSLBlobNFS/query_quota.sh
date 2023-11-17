@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# --------------------------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for license information.
+# --------------------------------------------------------------------------------------------
+
 # Query the quota of the NFSv3 share. Since NFSv3 shares don't support quotas, this script will return 0.
 # 3 arguments to the script:
 # 1. directory

@@ -1,3 +1,8 @@
+# --------------------------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for license information.
+# --------------------------------------------------------------------------------------------
+
 #
 # Module manifest for module 'WSLBlobNFS'
 #
@@ -12,7 +17,9 @@
 RootModule = 'WSLBlobNFS.psm1'
 
 # Version number of this module.
-# To-do: Proper versioning of the script.
+# To-do:
+# 1. Proper versioning of the script.
+# 2. Automate the versioning and release process.
 ModuleVersion = '1.0.2'
 
 # Supported PSEditions

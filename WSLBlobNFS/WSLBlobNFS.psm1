@@ -1,3 +1,8 @@
+# --------------------------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for license information.
+# --------------------------------------------------------------------------------------------
+
 # Set the execution policy to appropriate value to run the script
 # Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope CurrentUser
 
@@ -7,8 +12,14 @@ Set-StrictMode -version Latest
 $ErrorActionPreference = 'Stop'
 
 # To-do:
-# 1. Add support for cleanup and mountmappings
-# 2. Add tests for the module using Pester
+# - Add support for cleanup and mountmappings
+# - Add tests for the module using Pester
+# - Sign the module
+# - Automate to start this script and run Initialize on startup. But initialize should be run only once depending on
+#   the version of the script.
+# - Use various output streams to log different messages and enable or disable them accordingly while running the script.
+#   https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_output_streams?view=powershell-5.1
+# - Help content for each function
 
 function Install-WSLBlobNFS
 {
@@ -19,15 +30,22 @@ function Install-WSLBlobNFS
         Write-Host "WSL is not installed. Installing WSL..."
 
         wsl --install -d Ubuntu-22.04
+        # To-do: Check if the distro is installed successfully or not.
+
+        # To-do: Prompt user to restart the machine to complete WSL installation.
         Write-Host "Restart the VM to complete WSL installation, and then Run the script again with Initialize-WSLBlobNFS to continue the WSL setup."
         return
     }
-    Write-Host "WSL is already installed. Skipping WSL installation."
-    return
+
+    # To-do: Prompt user to Initialize-WSLBlobNFS if WSL is already installed.
+    Write-Host "WSL is already installed. Skipping WSL installation. Run Initialize-WSLBlobNFS to setup WSL environment "
+               "for WSLBlobNFS usage."
 }
 
 function Initialize-WSLBlobNFS
 {
+    # To-do: Show progress of the script execution.
+
     # Most of the commands require admin privileges. Hence, we need to run the script as admin.
     $linuxusername = "root"
 
@@ -42,66 +60,62 @@ function Initialize-WSLBlobNFS
         return
     }
 
-    # Run the script with setupwslenv argument
-    # To-do: Automate to start this on startup.
-
-    Write-Host "Installing Ubuntu-22.04..."
-    wsl --install -d Ubuntu-22.04
-
-    # ask user if the username was setup
-    $usernameSetup = Read-Host "Was the wsl distro username setup? (y/n)"
-    if($usernameSetup -ne "y")
-    {
-        Write-Host "Restart the VM to complete wsl installation, and then run the script again with setupwslenv action to continue the wsl setup."
-        return
-    }
-
     Write-Host "Setting up the WSL environment for your WSLBlobNFS usage."
 
-    # wsl shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
-    # Check the issue here:
-    # https://github.com/microsoft/WSL/issues/10138
-
-    # To-do: Copy only if the file is not present or if the file is modified.
-    # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
-    wsl -d Ubuntu-22.04 -u root -e bash -c "mkdir -p /root/scripts"
-
-    # Add the blobNFSPath, which hold the path of module, to WSLENV to help in copying wsl2_linux_script.sh to wsl distro.
-    # [Environment]::SetEnvironmentVariable("blobNFSPath", $PSScriptRoot)
+    # # Add the modulePath, which hold the path of module, to WSLENV to help in copying linux scripts to wsl distro.
+    # [Environment]::SetEnvironmentVariable("modulePath", $PSScriptRoot)
     # $p = [Environment]::GetEnvironmentVariable("WSLENV")
-    # $p += ":blobNFSPath/p"
+    # $p += ":modulePath/p"
     # [Environment]::SetEnvironmentVariable("WSLENV",$p)
 
     # Powershell 3+ is require for $PSScriptRoot
-    $blobNFSPath = ("/mnt/" + ($PSScriptRoot.Replace("\", "/").Replace(":", ""))).ToLower()
+    $modulePath = ("/mnt/" + ($PSScriptRoot.Replace("\", "/").Replace(":", ""))).ToLower()
+
+    # To-do: Copy only if the file is not present or if the file is modified.
+    # To-do: Check if the files are present or not.
+    $linuxScriptsPath = "/root/scripts"
+    $wslScriptName = "wsl2_linux_script.sh"
+    $queryScriptName = "query_quota.sh"
+
+    # To-do: Handle errors for each of the following commands.
+    wsl -d Ubuntu-22.04 -u root -e bash -c "mkdir -p $linuxScriptsPath"
 
     # Quote the path with '' to preserve space
-    Write-Host "Copying necessary linux files from $blobNFSPath"
+    Write-Host "Copying necessary linux files from $modulePath"
 
-    wsl -d Ubuntu-22.04 -u root -e bash -c "cp '$blobNFSPath/wsl2_linux_script.sh' /root/scripts/wsl2_linux_script.sh"
-    wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' /root/scripts/wsl2_linux_script.sh"
-    wsl -d Ubuntu-22.04 -u root -e bash -c "chmod +x /root/scripts/wsl2_linux_script.sh"
+    wsl -d Ubuntu-22.04 -u root -e bash -c "cp '$modulePath/$wslScriptName' $linuxScriptsPath/$wslScriptName"
 
-    wsl -d Ubuntu-22.04 -u root -e bash -c "cp '$blobNFSPath/query_quota.sh' /root/scripts/query_quota.sh"
-    wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' /root/scripts/query_quota.sh"
-    wsl -d Ubuntu-22.04 -u root -e bash -c "chmod +x /root/scripts/query_quota.sh"
+    # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
+    wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' $linuxScriptsPath/$wslScriptName"
+
+    wsl -d Ubuntu-22.04 -u root -e bash -c "chmod +x $linuxScriptsPath/$wslScriptName"
+
+    wsl -d Ubuntu-22.04 -u root -e bash -c "cp '$modulePath/$queryScriptName' $linuxScriptsPath/$queryScriptName"
+
+    # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
+    wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' $linuxScriptsPath/$queryScriptName"
+
+    wsl -d Ubuntu-22.04 -u root -e bash -c "chmod +x $linuxScriptsPath/$queryScriptName"
 
     # Install systemd, restart wsl and install nfs and samba
-    wsl -d Ubuntu-22.04 -u root /root/scripts/wsl2_linux_script.sh installsystemd
+    # To-do: Check if systemd is already installed or not.
+    wsl -d Ubuntu-22.04 -u root $linuxScriptsPath/$wslScriptName installsystemd
     Write-Host "Installed systemd."
 
     # Shutdown wsl and it will restart with systemd on next wsl command execution
     wsl -d Ubuntu-22.04 --shutdown
 
     # wsl shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
+    # Check the issue here:
+    # https://github.com/microsoft/WSL/issues/10138
     # To-do: Check if dbus is already running or not.
     # dbus[488]: Unable to set up transient service directory: XDG_RUNTIME_DIR "/run/user/0/" is owned by uid 1000, not our uid 0
     wsl -d Ubuntu-22.04 -u root --exec dbus-launch true
 
-    wsl -d Ubuntu-22.04 -u root /root/scripts/wsl2_linux_script.sh installnfssmb $linuxusername
+    # To-do: Check exit code of the following command.
+    wsl -d Ubuntu-22.04 -u root $linuxScriptsPath/$wslScriptName installnfssmb $linuxusername
     Write-Host "Installed nfs & smb."
     return
-    
 }
 
 function Mount-WSLBlobNFS
@@ -111,20 +125,6 @@ function Mount-WSLBlobNFS
         [string]$mountcommand,
         [string]$mountdrive
     )
-
-    # Most of the commands require admin privileges. Hence, we need to run the script as admin.
-    $linuxusername = "root"
-
-    # Check if wsl is installed or not.
-    $wslstatus = wsl -l -v
-    if($LASTEXITCODE -eq 1)
-    {
-        Write-Host "WSL is not installed. Installing WSL..."
-
-        wsl --install -d Ubuntu-22.04
-        Write-Host "Restart the VM to complete WSL installation, and then Run the script again with Initialize-WSLBlobNFS to continue the WSL setup."
-        return
-    }
 
     # mountcommand and mountdrive are mandatory arguments for mountshare
     if([string]::IsNullOrWhiteSpace($mountcommand))
@@ -138,11 +138,35 @@ function Mount-WSLBlobNFS
         return
     }
 
+    # Most of the commands require admin privileges. Hence, we need to run the script as admin.
+    $linuxusername = "root"
+
+    # Check if wsl is installed or not.
+    $wslstatus = wsl -l -v
+    if($LASTEXITCODE -eq 1)
+    {
+        Write-Host "WSL is not installed. Installing WSL..."
+
+        wsl --install -d Ubuntu-22.04
+        Write-Host "Restart the VM to complete WSL installation, and then Run the script again with Initialize-WSLBlobNFS to continue the WSL setup."
+        return
+    }
+
+    # To-do:
+    # - Validate the mountcommand and mountdrive even further.
+    # - Check if the mountdrive is already mounted or not.
+    # - Check if the mountcommand is already mounted or not.
+    # - Check the exit code of net use command.
     $smbexportname = $mountcommand.Split(" ")[-1].Replace("/", "").Trim(" ")
     $password = $linuxusername
 
+    # To-do: Copy only if the file is not present or if the file is modified.
+    # To-do: Check if the files are present or not.
+    $linuxScriptsPath = "/root/scripts"
+    $wslScriptName = "wsl2_linux_script.sh"
+
     Write-Host "Mounting $mountcommand."
-    wsl -d Ubuntu-22.04 -u root /root/scripts/wsl2_linux_script.sh "mountshare" "$mountcommand" "$smbexportname"
+    wsl -d Ubuntu-22.04 -u root $linuxScriptsPath/$wslScriptName "mountshare" "$mountcommand" "$smbexportname"
     $ipaddress = wsl -d Ubuntu-22.04 -u root hostname -I
     $ipaddress = $ipaddress.Trim()
     Write-Host "Mounting smb share \\$ipaddress\$smbexportname onto windows mount point $mountdrive"
@@ -154,6 +178,7 @@ function Mount-WSLBlobNFS
 function Dismount-WSLBlobNFS
 {
     param(
+        # Mountdrive is mandatory arguments for unmountshare
         [string]$mountdrive
     )
     # mountdrive is mandatory arguments for unmountshare
@@ -175,6 +200,8 @@ function Dismount-WSLBlobNFS
     }
 
     $smbmapping = Get-SmbMapping -LocalPath "$mountdrive"
+
+    # To-do: Ask user if they want to unmount previously mounted share in wsl?
     if($smbmapping -eq $null)
     {
         Write-Host "No smb share is mounted on $mountdrive."
@@ -195,8 +222,13 @@ function Dismount-WSLBlobNFS
         return
     }
 
+    # To-do: Copy only if the file is not present or if the file is modified.
+    # To-do: Check if the files are present or not.
+    $linuxScriptsPath = "/root/scripts"
+    $wslScriptName = "wsl2_linux_script.sh"
+
     # To-do: If unmount fails then, don't remove the smb mapping.
-    wsl -d Ubuntu-22.04 -u root /root/scripts/wsl2_linux_script.sh "unmountshare" "$smbexportname"
+    wsl -d Ubuntu-22.04 -u root $linuxScriptsPath/$wslScriptName "unmountshare" "$smbexportname"
 
     net use $mountdrive /delete
     Write-Host "Unmounting smb share done."
