@@ -1,20 +1,25 @@
 # Set the execution policy to appropriate value to run the script
 # Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope CurrentUser
 
+# Throw an error if any cmdlet, function, or command fails or a variable is unknown and stop the script execution.
+Set-PSDebug -Strict
+Set-StrictMode -version Latest
+$ErrorActionPreference = 'Stop'
+
 # To-do:
 # 1. Add support for cleanup and mountmappings
 # 2. Add tests for the module using Pester
 
 function Install-WSLBlobNFS
 {
-    # Check if wsl is installed or not. Fail if wsl is not installed.
+    # Check if wsl is installed or not.
     $wslstatus = wsl -l -v
-    if($LASTreturnCODE -eq 1)
+    if($LASTEXITCODE -eq 1)
     {
         Write-Host "WSL is not installed. Installing WSL..."
 
         wsl --install -d Ubuntu-22.04
-        Write-Host "Restart the VM to complete WSL installation, and then Run the script again with setupwslenv action to continue the WSL setup."
+        Write-Host "Restart the VM to complete WSL installation, and then Run the script again with Initialize-WSLBlobNFS to continue the WSL setup."
         return
     }
     Write-Host "WSL is already installed. Skipping WSL installation."
@@ -26,11 +31,14 @@ function Initialize-WSLBlobNFS
     # Most of the commands require admin privileges. Hence, we need to run the script as admin.
     $linuxusername = "root"
 
-    # Check if wsl is installed or not. Fail if wsl is not installed.
+    # Check if wsl is installed or not.
     $wslstatus = wsl -l -v
-    if($LASTreturnCODE -eq 1)
+    if($LASTEXITCODE -eq 1)
     {
-        Write-Host "wsl is not installed. Please run the script with installwsl action to install wsl first."
+        Write-Host "WSL is not installed. Installing WSL..."
+
+        wsl --install -d Ubuntu-22.04
+        Write-Host "Restart the VM to complete WSL installation, and then Run the script again with Initialize-WSLBlobNFS to continue the WSL setup."
         return
     }
 
@@ -107,13 +115,17 @@ function Mount-WSLBlobNFS
     # Most of the commands require admin privileges. Hence, we need to run the script as admin.
     $linuxusername = "root"
 
-    # Check if wsl is installed or not. Fail if wsl is not installed.
+    # Check if wsl is installed or not.
     $wslstatus = wsl -l -v
-    if($LASTreturnCODE -eq 1)
+    if($LASTEXITCODE -eq 1)
     {
-        Write-Host "wsl is not installed. Please run the script with installwsl action to install wsl first."
+        Write-Host "WSL is not installed. Installing WSL..."
+
+        wsl --install -d Ubuntu-22.04
+        Write-Host "Restart the VM to complete WSL installation, and then Run the script again with Initialize-WSLBlobNFS to continue the WSL setup."
         return
     }
+
     # mountcommand and mountdrive are mandatory arguments for mountshare
     if([string]::IsNullOrWhiteSpace($mountcommand))
     {
@@ -148,6 +160,17 @@ function Dismount-WSLBlobNFS
     if([string]::IsNullOrWhiteSpace($mountdrive))
     {
         Write-Host "Mounted drive is not provided."
+        return
+    }
+
+    # Check if wsl is installed or not.
+    $wslstatus = wsl -l -v
+    if($LASTEXITCODE -eq 1)
+    {
+        Write-Host "WSL is not installed. Installing WSL..."
+
+        wsl --install -d Ubuntu-22.04
+        Write-Host "Restart the VM to complete WSL installation, and then Run the script again with Initialize-WSLBlobNFS to continue the WSL setup."
         return
     }
 
