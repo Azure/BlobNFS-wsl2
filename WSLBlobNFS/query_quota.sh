@@ -28,40 +28,5 @@
 # 8 (optional) - the number of bytes in a block(default is 1024)
 # Example: get quota command = /usr/local/sbin/query_quota
 
-# Get the absolute path of the directory
-function get_absoulte_path ()
-{
-    if [[ $1 == "." ]]; then
-        echo $(pwd)
-    else
-        echo $1
-    fi
-}
-
-# Validate the arguments?
-# To-do: Check what does Samba server expect for invalid arguments
-if [[ $# != 3 ]]; then
-    echo "Usage: $0 <directory> <type> <uid/gid>"
-    exit 1
-fi
-
-if [[ ! -d $1 ]]; then
-    echo "Directory $1 does not exist"
-    exit 1
-fi
-
-if [[ $2 < 1 || $2 > 4 ]]; then
-    echo "Type $2 is not valid"
-    exit 1
-fi
-
-if [[ $3 < -1 ]]; then
-    echo "Uid/Gid $3 is not valid"
-    exit 1
-fi
-
-# Ignore the quota type and uid/gid and just return 0 for an NFSv3 share
-abolute_path=$(get_absoulte_path $1)
-
 # To-do: Check if directory is a Blob NFSv3 mount
 echo "0 0 0 0 0 0 0 1024"

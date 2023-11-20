@@ -30,6 +30,7 @@ function install_systemd ()
 # Install NFS
 function install_nfs ()
 {
+    # To-do: Check if there are any existing NFS mounts and upgrade only if there are no existing ones.
     apt-get update > /dev/null
     apt-get upgrade -y > /dev/null
     apt-get install nfs-common -y > /dev/null
@@ -38,6 +39,7 @@ function install_nfs ()
 # Install Samba
 function install_samba ()
 {
+    # To-do: Check if there are any existing SMB shares and upgrade only if there are no existing shares
     apt-get update > /dev/null
     apt-get upgrade -y > /dev/null
     apt-get install samba -y > /dev/null
@@ -54,6 +56,7 @@ function onetime_samba_setup ()
     echo -ne "$1\n$1" | tee - | smbpasswd -a -s $1
 
     # Add get quota script to the Samba global config
+    # To-do: Add a warning that quota is not supported for all the SMB shares.
     sed -i "/\[global\]/ a get quota command = $(dirname -- $0)/query_quota.sh" /etc/samba/smb.conf
 }
 
@@ -71,6 +74,8 @@ function mount_nfs ()
     echo "Got $# number of args: $*"
     # execute the mount command passed as the first argument
     $1
+
+    # To-do: Check the exit code of the mount command and return the exit code
 
     # Set the read ahead to 16MB
     echo "Setting read ahead to 16MB"
@@ -142,6 +147,7 @@ function unmount_share ()
     if [[ ${mntpath:0:1} == "/" ]]; then
         # check if the path exists
         if [[ -d $mntpath ]]; then
+            # To-do: Add retries and add a background queue to unmount the NFS share
             umount $mntpath
             echo "Unmounted NFS mount at: $mntpath"
         else
@@ -216,6 +222,7 @@ elif [[ $1 == "mountshare" ]]; then
     # quote the mount command to preserve the spaces
     mount_nfs "$2" "$mountpoint"
     echo "Done NFS mounting."
+    # To-do: Don't proceed if the mount command failed
 
     echo "Exporting NFS share via Samba.."
     export_via_samba "$3" "$mountpoint"
