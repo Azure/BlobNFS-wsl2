@@ -199,34 +199,76 @@ elif [[ $1 == "installnfssmb" ]]; then
 # else if the first argument is mountshare, then run the mount steps
 elif [[ $1 == "mountshare" ]]; then
 
-    # Split the mount command into tokens
-    IFS=' ' read -ra nametokens <<< "$2"
-    # last element is the mount point
-    mountpoint=${nametokens[-1]}
-    # check if the last element is a path
-    if [[ ${mountpoint:0:1} == "/" ]]; then
-        # check if the path exists
-        if [[ ! -d $mountpoint ]]; then
-            mkdir -p $mountpoint
-            echo "Created $mountpoint"
-        else
-            echo "Mount point $mountpoint already exists"
-        fi
-    else
-        echo "Mount point $mountpoint is not a path"
+    if [[ $# != 4 ]]; then
+        echo "Usage: $0 <mountshare> <mountParameterType> <mountParameter> <tempFilePath>"
         exit 1
+    fi
+
+    mountparametertype=$2
+    mountparameter=$3
+    tempFilePath=$4
+
+    # Create the mountpath, sharename, and mountCommand
+    mountPath=""
+    shareName=""
+    mountCommand=""
+    if [[ $mountparametertype == "command" ]]; then
+        # MountCommand: mount -t nfs -o vers=3,proto=tcp <account-name>.blob.core.windows.net:/<account-name>/<container-name> /mnt/<path>
+        mountCommand=$mountparameter
+        echo "Mount command is: $mountCommand"
+
+        # Split the mount command into tokens
+        IFS=' ' read -ra nametokens <<< "$mountCommand"
+
+        # last element is the mount point
+        mountPath=${nametokens[-1]}
+
+        # check if the last element is a path
+        if [[ ${mountPath:0:1} == "/" ]]; then
+            # check if the path exists
+            if [[ ! -d $mountPath ]]; then
+                mkdir -p $mountPath
+                echo "Created $mountPath"
+            else
+                echo "Mount point $mountPath already exists"
+            fi
+        else
+            echo "Mount point $mountPath is not a path"
+            exit 1
+        fi
+
+        mpath=${mountPath:1}
+        shareName=${mpath//\//-}
+    else
+        # RemoteHost: <account-name>.blob.core.windows.net:/<account-name>/<container-name>
+
+        # A random mount path to mount the NFS share
+        randomnumber=$RANDOM
+        mountPath="/mnt/nfsv3share-$randomnumber"
+        while [[ -e $mountPath ]]; do
+            randomnumber=$RANDOM
+            mountPath="/mnt/nfsv3share-$randomnumber"
+        done
+
+        mkdir -p $mountPath
+        echo "Created $mountPath"
+
+        mountCommand="mount -t nfs -o vers=3,proto=tcp $mountparameter $mountPath"
+        shareName="nfsv3share-$randomnumber"
     fi
 
     echo "Mounting NFS share.."
 
     # quote the mount command to preserve the spaces
-    mount_nfs "$2" "$mountpoint"
+    mount_nfs "$mountCommand" "$mountPath"
     echo "Done NFS mounting."
     # To-do: Don't proceed if the mount command failed
 
     echo "Exporting NFS share via Samba.."
-    export_via_samba "$3" "$mountpoint"
-    echo "Done Samba exporting."
+    export_via_samba "$shareName" "$mountPath"
+
+    echo "$shareName" > $tempFilePath
+    echo "Done Samba exporting and saved the share name ($sharename) to $tempFilePath."
 
 # if the first argument is unmountshare, then unmount smb and nfs shares
 elif [[ $1 == "unmountshare" ]]; then

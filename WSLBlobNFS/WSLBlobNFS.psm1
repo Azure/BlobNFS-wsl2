@@ -11,6 +11,19 @@ Set-PSDebug -Strict
 Set-StrictMode -version Latest
 $ErrorActionPreference = 'Stop'
 
+# Powershell 3+ is require for $PSScriptRoot
+$modulePathInWindows = $PSScriptRoot
+$modulePathInLinux = ("/mnt/" + ($modulePathInWindows.Replace("\", "/").Replace(":", ""))).ToLower()
+
+# Create a temp folder to facilitate communication between windows and wsl
+$tempFolderPathInWin = $env:TEMP
+$tempFolderPathInLinux = ("/mnt/" + ($tempFolderPathInWin.Replace("\", "/").Replace(":", ""))).ToLower()
+if (-not (Test-Path -Path $tempFolderPathInWin))
+{
+    New-Item -ItemType Directory -Path $tempFolderPathInWin
+    Write-Host "Created temp folder $tempFolderPathInWin to facilitate communication between windows and wsl."
+}
+
 # To-do:
 # - Add support for cleanup and mountmappings
 # - Add tests for the module using Pester
@@ -62,16 +75,13 @@ function Initialize-WSLBlobNFS
 
     Write-Host "Setting up the WSL environment for your WSLBlobNFS usage."
 
-    # # Add the modulePath, which hold the path of module, to WSLENV to help in copying linux scripts to wsl distro.
-    # [Environment]::SetEnvironmentVariable("modulePath", $PSScriptRoot)
+    # # Add the modulePathInLinux, which hold the path of module, to WSLENV to help in copying linux scripts to wsl distro.
+    # [Environment]::SetEnvironmentVariable("modulePathInLinux", $PSScriptRoot)
     # $p = [Environment]::GetEnvironmentVariable("WSLENV")
-    # $p += ":modulePath/p"
+    # $p += ":modulePathInLinux/p"
     # [Environment]::SetEnvironmentVariable("WSLENV",$p)
 
-    # Powershell 3+ is require for $PSScriptRoot
-    $modulePath = ("/mnt/" + ($PSScriptRoot.Replace("\", "/").Replace(":", ""))).ToLower()
-
-    # To-do: Copy only if the file is not present or if the file is modified.
+    # To-do (P1): Copy only if the file is not present or if the file is modified.
     # To-do: Check if the files are present or not.
     $linuxScriptsPath = "/root/scripts"
     $wslScriptName = "wsl2_linux_script.sh"
@@ -81,16 +91,16 @@ function Initialize-WSLBlobNFS
     wsl -d Ubuntu-22.04 -u root -e bash -c "mkdir -p $linuxScriptsPath"
 
     # Quote the path with '' to preserve space
-    Write-Host "Copying necessary linux files from $modulePath"
+    Write-Host "Copying necessary linux files from $modulePathInLinux"
 
-    wsl -d Ubuntu-22.04 -u root -e bash -c "cp '$modulePath/$wslScriptName' $linuxScriptsPath/$wslScriptName"
+    wsl -d Ubuntu-22.04 -u root -e bash -c "cp '$modulePathInLinux/$wslScriptName' $linuxScriptsPath/$wslScriptName"
 
     # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
     wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' $linuxScriptsPath/$wslScriptName"
 
     wsl -d Ubuntu-22.04 -u root -e bash -c "chmod +x $linuxScriptsPath/$wslScriptName"
 
-    wsl -d Ubuntu-22.04 -u root -e bash -c "cp '$modulePath/$queryScriptName' $linuxScriptsPath/$queryScriptName"
+    wsl -d Ubuntu-22.04 -u root -e bash -c "cp '$modulePathInLinux/$queryScriptName' $linuxScriptsPath/$queryScriptName"
 
     # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
     wsl -d Ubuntu-22.04 -u root -e bash -c "sed -i -e 's/\r$//' $linuxScriptsPath/$queryScriptName"
@@ -121,15 +131,16 @@ function Initialize-WSLBlobNFS
 function Mount-WSLBlobNFS
 {
     param(
-        # To-do: Add support for cleanup and mountmappings
         [string]$mountcommand,
+        [string]$remotehost,
         [string]$mountdrive
     )
 
-    # mountcommand and mountdrive are mandatory arguments for mountshare
-    if([string]::IsNullOrWhiteSpace($mountcommand))
+    # mountdrive is mandatory arguments for mountshare
+    $remotemountpresent = [string]::IsNullOrWhiteSpace($remotehost) -and [string]::IsNullOrWhiteSpace($mountcommand)
+    if($remotemountpresent)
     {
-        Write-Host "Mount command is not provided."
+        Write-Host "Remote Host or mount command is not provided."
         return
     }
     if([string]::IsNullOrWhiteSpace($mountdrive))
@@ -154,24 +165,55 @@ function Mount-WSLBlobNFS
 
     # To-do:
     # - Validate the mountcommand and mountdrive even further.
-    # - Check if the mountdrive is already mounted or not.
+    # - Check if the mountcommand is a valid mount command or not.
     # - Check if the mountcommand is already mounted or not.
+    # - Check if the mountdrive is already mounted or not.
     # - Check the exit code of net use command.
-    $smbexportname = $mountcommand.Split(" ")[-1].Replace("/", "").Trim(" ")
-    $password = $linuxusername
+
+    $mountParameterType = ""
+    $mountParameter = ""
+    $tempFileName = ""
+    $winTempFilePath = ""
+
+    if (![string]::IsNullOrWhiteSpace($mountcommand))
+    {
+        $mountParameterType = "command"
+        $mountParameter = $mountcommand
+    }
+    else
+    {
+        $mountParameterType = "remotehost"
+        $mountParameter = $remotehost
+    }
+
+    $randomValue = Get-Random
+    do
+    {
+        $randomValue = Get-Random
+        $tempFileName = "file-" + $randomValue
+        $winTempFilePath = $tempFolderPathInWin + "\" + $tempFileName
+        $wslTempFilePath = $tempFolderPathInLinux + "/" + $tempFileName
+    } while (Test-Path $winTempFilePath)
 
     # To-do: Copy only if the file is not present or if the file is modified.
     # To-do: Check if the files are present or not.
     $linuxScriptsPath = "/root/scripts"
     $wslScriptName = "wsl2_linux_script.sh"
 
-    Write-Host "Mounting $mountcommand."
-    wsl -d Ubuntu-22.04 -u root $linuxScriptsPath/$wslScriptName "mountshare" "$mountcommand" "$smbexportname"
+    Write-Host "Mounting $mountParameter."
+    wsl -d Ubuntu-22.04 -u root $linuxScriptsPath/$wslScriptName "mountshare" "$mountParameterType" "$mountParameter" "$wslTempFilePath"
+
+    # Get the remote host ip address and the share name
     $ipaddress = wsl -d Ubuntu-22.04 -u root hostname -I
     $ipaddress = $ipaddress.Trim()
-    Write-Host "Mounting smb share \\$ipaddress\$smbexportname onto windows mount point $mountdrive"
 
-    net use $mountdrive "\\$ipaddress\$smbexportname" /persistent:yes /user:$linuxusername $password
+    # Read the share name from the temp file
+    $smbsharename = Get-Content $winTempFilePath
+
+    Write-Host "Mounting smb share \\$ipaddress\$smbsharename onto windows mount point $mountdrive"
+
+    $password = $linuxusername
+    net use $mountdrive "\\$ipaddress\$smbsharename" /persistent:yes /user:$linuxusername $password
     Write-Host "Mounting smb share done."
 }
 
