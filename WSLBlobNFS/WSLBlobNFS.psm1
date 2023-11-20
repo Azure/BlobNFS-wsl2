@@ -15,15 +15,6 @@ $ErrorActionPreference = 'Stop'
 $modulePathInWindows = $PSScriptRoot
 $modulePathInLinux = ("/mnt/" + ($modulePathInWindows.Replace("\", "/").Replace(":", ""))).ToLower()
 
-# Create a temp folder to facilitate communication between windows and wsl
-$tempFolderPathInWin = $env:TEMP
-$tempFolderPathInLinux = ("/mnt/" + ($tempFolderPathInWin.Replace("\", "/").Replace(":", ""))).ToLower()
-if (-not (Test-Path -Path $tempFolderPathInWin))
-{
-    New-Item -ItemType Directory -Path $tempFolderPathInWin
-    Write-Host "Created temp folder $tempFolderPathInWin to facilitate communication between windows and wsl."
-}
-
 # To-do:
 # - Add support for cleanup and mountmappings
 # - Add tests for the module using Pester
@@ -137,8 +128,8 @@ function Mount-WSLBlobNFS
     )
 
     # mountdrive is mandatory arguments for mountshare
-    $remotemountpresent = [string]::IsNullOrWhiteSpace($remotehost) -and [string]::IsNullOrWhiteSpace($mountcommand)
-    if($remotemountpresent)
+    $remotemountnotpresent = [string]::IsNullOrWhiteSpace($remotehost) -and [string]::IsNullOrWhiteSpace($mountcommand)
+    if($remotemountnotpresent)
     {
         Write-Host "Remote Host or mount command is not provided."
         return
@@ -174,6 +165,7 @@ function Mount-WSLBlobNFS
     $mountParameter = ""
     $tempFileName = ""
     $winTempFilePath = ""
+    $wslTempFilePath = ""
 
     if (![string]::IsNullOrWhiteSpace($mountcommand))
     {
@@ -186,14 +178,8 @@ function Mount-WSLBlobNFS
         $mountParameter = $remotehost
     }
 
-    $randomValue = Get-Random
-    do
-    {
-        $randomValue = Get-Random
-        $tempFileName = "file-" + $randomValue
-        $winTempFilePath = $tempFolderPathInWin + "\" + $tempFileName
-        $wslTempFilePath = $tempFolderPathInLinux + "/" + $tempFileName
-    } while (Test-Path $winTempFilePath)
+    $winTempFilePath = New-TemporaryFile
+    $wslTempFilePath = ("/mnt/" + ($winTempFilePath.FullName.Replace("\", "/").Replace(":", ""))).ToLower()
 
     # To-do: Copy only if the file is not present or if the file is modified.
     # To-do: Check if the files are present or not.
@@ -208,7 +194,7 @@ function Mount-WSLBlobNFS
     $ipaddress = $ipaddress.Trim()
 
     # Read the share name from the temp file
-    $smbsharename = Get-Content $winTempFilePath
+    $smbsharename = Get-Content $winTempFilePath.FullName
 
     Write-Host "Mounting smb share \\$ipaddress\$smbsharename onto windows mount point $mountdrive"
 
