@@ -573,7 +573,7 @@ function Dismount-WSLBlobNFS
     Write-Success "Unmounting smb share done."
 }
 
-function Dismount-WSLMount
+function Dismount-MountInsideWSL
 {
     <#
     .SYNOPSIS
@@ -630,4 +630,4 @@ function Dismount-WSLMount
     Write-Success "Unmounting $ShareName done."
 }
 
-Export-ModuleMember -Function Install-WSLBlobNFS, Initialize-WSLBlobNFS, Mount-WSLBlobNFS, Dismount-WSLBlobNFS, Dismount-WSLMount
+Export-ModuleMember -Function Install-WSLBlobNFS, Initialize-WSLBlobNFS, Mount-WSLBlobNFS, Dismount-WSLBlobNFS, Dismount-MountInsideWSL
