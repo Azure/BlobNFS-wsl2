@@ -246,14 +246,15 @@ function Initialize-WSLBlobNFS-Internal
 
         # Shutdown wsl and it will restart with systemd on next wsl command execution
         wsl -d $distroName --shutdown
-
-        # wsl shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
-        # Check the issue here:
-        # https://github.com/microsoft/WSL/issues/10138
-        # To-do: Check if dbus is already running or not.
-        # dbus[488]: Unable to set up transient service directory: XDG_RUNTIME_DIR "/run/user/0/" is owned by uid 1000, not our uid 0
-        wsl -d $distroName -u $userName --exec dbus-launch true
     }
+
+    # wsl shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
+    # Check the issue here:
+    # https://github.com/microsoft/WSL/issues/10138
+    # To-do: Check if dbus is already running or not.
+    # dbus[488]: Unable to set up transient service directory: XDG_RUNTIME_DIR "/run/user/0/" is owned by uid 1000, not our uid 0
+    # Even if the systemd is installed, we need to run dbus-launch to keep it running.
+    wsl -d $distroName --exec dbus-launch true
 
     Execute-WSL "dpkg -s nfs-common samba > /dev/null 2>&1"
     if($LASTEXITCODE -eq 0 -and !$Force)
@@ -277,7 +278,7 @@ function Initialize-WSLBlobNFS-Internal
 
     if ($initialized)
     {
-        Write-Success "WSL environment for WSLBlobNFS usage is initialized."
+        Write-Debug "WSL environment for WSLBlobNFS usage is initialized."
     }
     else
     {
