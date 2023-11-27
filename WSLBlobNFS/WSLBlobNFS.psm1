@@ -3,16 +3,17 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
-# Set the execution policy to appropriate value to run the script
-# Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope CurrentUser
-
 # Throw an error if any cmdlet, function, or command fails or a variable is unknown and stop the script execution.
 Set-PSDebug -Strict
-Set-StrictMode -version Latest
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# Min supported WSL version
+$minSupportedVersion = [Version]"2.0.0"
 
 # WSL distro name and user name
 $distroName = "Ubuntu-22.04"
+
 # Most of the commands require admin privileges. Hence, we need to run the script as admin.
 $userName = "root"
 
@@ -38,6 +39,7 @@ $versionFileName = "version.txt"
 #   https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_output_streams?view=powershell-5.1
 # - Help content for each function: Get-Help <function-name>
 # - Add Uninitialize module support
+# - Add retry logic for each of the commands
 
 # To-do:
 # - To handle -Debug issue, set the debug preference to continue and then set it back to the original value.
@@ -51,12 +53,13 @@ $versionFileName = "version.txt"
 function Get-ModuleVersion
 {
     [CmdletBinding()]
+    [OutputType([System.String])]
     param()
 
     # In local dev env, the module is not installed from gallery. Hence, Get-InstalledModule will fail.
     # Hence, suppress the error and return 0.0.0 as the module version.
     $blobNFSModule = Get-InstalledModule -Name $moduleName 2>$null
-    if ($blobNFSModule -eq $null)
+    if ($null -eq $blobNFSModule)
     {
         return "0.0.0"
     }
@@ -71,10 +74,10 @@ function Write-Success
         [Parameter(Mandatory = $true)][string]$message
     )
 
-    Write-Host $message -ForegroundColor DarkGreen
+    Write-Output $message -ForegroundColor DarkGreen
 }
 
-function Execute-WSL
+function Invoke-WSL
 {
     [CmdletBinding()]
     param(
@@ -85,7 +88,7 @@ function Execute-WSL
     wsl -d $distroName -u $userName -e bash -c $wslcommand
 }
 
-function Copy-WSLFiles
+function Copy-FileInWSL
 {
     [CmdletBinding()]
     param()
@@ -93,69 +96,96 @@ function Copy-WSLFiles
     # Note: Quote the path with '' to preserve space
     Write-Verbose "Copying necessary linux files from $modulePathForLinux"
 
-    Execute-WSL "mkdir -p $linuxScriptsPath"
+    Invoke-WSL "mkdir -p $linuxScriptsPath"
 
-    Execute-WSL "cp '$modulePathForLinux/$wslScriptName' $linuxScriptsPath/$wslScriptName"
-
-    # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
-    Execute-WSL "sed -i -e 's/\r$//' $linuxScriptsPath/$wslScriptName"
-
-    Execute-WSL "chmod +x $linuxScriptsPath/$wslScriptName"
-
-    Execute-WSL "cp '$modulePathForLinux/$queryScriptName' $linuxScriptsPath/$queryScriptName"
+    Invoke-WSL "cp '$modulePathForLinux/$wslScriptName' $linuxScriptsPath/$wslScriptName"
 
     # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
-    Execute-WSL "sed -i -e 's/\r$//' $linuxScriptsPath/$queryScriptName"
+    Invoke-WSL "sed -i -e 's/\r$//' $linuxScriptsPath/$wslScriptName"
 
-    Execute-WSL "chmod +x $linuxScriptsPath/$queryScriptName"
+    Invoke-WSL "chmod +x $linuxScriptsPath/$wslScriptName"
 
-    Execute-WSL "ls -l $linuxScriptsPath | grep -E '$wslScriptName|$queryScriptName' > /dev/null 2>&1"
+    Invoke-WSL "cp '$modulePathForLinux/$queryScriptName' $linuxScriptsPath/$queryScriptName"
+
+    # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
+    Invoke-WSL "sed -i -e 's/\r$//' $linuxScriptsPath/$queryScriptName"
+
+    Invoke-WSL "chmod +x $linuxScriptsPath/$queryScriptName"
+
+    Invoke-WSL "ls -l $linuxScriptsPath | grep -E '$wslScriptName|$queryScriptName' > /dev/null 2>&1"
 }
 
-function Intall-WSLBlobNFS-Internal
+function Install-WSLBlobNFS-Internal
 {
     [CmdletBinding()]
     param()
 
-    # Check if wsl is installed or not.
-    wsl -l -v > $null 2>&1
-    $wslstatus = $LASTEXITCODE
-
-    # Check if the distro is installed or not.
-    # Note: executing a command such as ls is required else if the distro is installed, then control will not come out of wsl command.
-    wsl -d $distroName ls > $null 2>&1
-    $distrostatus = $LASTEXITCODE
+    # Check if WSL is installed or not.
+    $wslDistros = wsl -l -v 2>&1
+    $wslstatus = $LastExitCode
 
     if($wslstatus -eq 1)
     {
-        Write-Host "WSL is not installed. Installing WSL..."
+        Write-Output "WSL is not installed. Installing WSL..."
 
         wsl --install -d $distroName
-        # To-do: Check if the distro is installed successfully or not.
 
-        # To-do: Prompt user to restart the machine to complete WSL installation.
-        Write-Success "Restart the VM to complete WSL installation, and then run Initialize-WSLBlobNFS to continue the WSL setup."
+        if($LastExitCode -ne 0)
+        {
+            Write-Error "WSL installation failed. Try again."
+            $global:LastExitCode = 1
+            return
+        }
+
+        Write-Success "WSL distro $distroName successfully installed!"
+
+        Write-Success "Restart the machine to complete WSL installation, and then run Initialize-WSLBlobNFS to continue the WSL setup."
+        Restart-Computer -Confirm
 
         # Set the exit code to 1 to indicate that the script execution is not completed.
-        $global:LASTEXITCODE = 1
+        $global:LastExitCode = 1
         return
     }
-    elseif($distrostatus -eq -1)
+
+    # Check the WSL version
+    $wslVersionOp = wsl -v 2>&1
+
+    if($null -eq $wslVersionOp)
     {
-        Write-Host "WSL distro $distroName is not installed. Installing WSL distro $distroName..."
+        Write-Error "WSL not installed correctly. Please reinstall WSL."
+        $global:LastExitCode = 1
+        return
+    }
+
+    # Remove the null character from the output and extract the version number.
+    $wslVersionOp = $wslVersionOp -replace '\0', ''
+    $wslVersionOp = $wslVersionOp -match 'WSL Version:'
+    [Version]$wslVersion = $wslVersionOp.Split(":")[1].Trim()
+
+    # We support only WSL2. Hence, check if the version is 2 or not.
+    if($wslversion -lt $minSupportedVersion)
+    {
+        Write-Error "Existing WSL version is not supported. Please upgrade to WSL2 using 'wsl --update' and set the default version to WSL2 using 'wsl --set-default-version 2'"
+        $global:LastExitCode = 1
+        return
+    }
+
+    # Check if the distro is installed or not.
+    $wslDistros = $wslDistros -replace '\0', ''
+    $distroStatus = $wslDistros -match "Ubuntu-22.04"
+
+    if([string]::IsNullOrWhiteSpace($distroStatus))
+    {
+        Write-Output "WSL distro $distroName is not installed. Installing WSL distro $distroName..."
         wsl --install -d $distroName
         # To-do: Check if the distro is installed successfully or not.
 
         Write-Success "WSL distro $distroName is installed. Run Initialize-WSLBlobNFS to setup WSL environment for WSLBlobNFS usage."
 
-        # Set the exit code to 1 to indicate that the script execution is not completed.
-        $global:LASTEXITCODE = 1
+        # Since the distro can now be used, we can continue the script execution. Hence, the exit code is 0.
         return
     }
-
-    return
 }
-
 
 function Initialize-WSLBlobNFS-Internal
 {
@@ -164,12 +194,12 @@ function Initialize-WSLBlobNFS-Internal
         [Parameter(Mandatory = $false)]$Force=$false
     )
 
-    # Check if wsl is installed or not.
-    Intall-WSLBlobNFS-Internal
-    if($LASTEXITCODE -ne 0)
+    # Check if WSL is installed or not.
+    Install-WSLBlobNFS-Internal
+    if($LastExitCode -ne 0)
     {
         # Set the exit code to 1 to indicate that the script execution is not completed.
-        $global:LASTEXITCODE = 1
+        $global:LastExitCode = 1
         return
     }
 
@@ -183,17 +213,20 @@ function Initialize-WSLBlobNFS-Internal
         Write-Debug "Initializing WSL environment for your WSLBlobNFS usage."
     }
 
-    # # Add the modulePathForLinux, which hold the path of module, to WSLENV to help in copying linux scripts to wsl distro.
+    # # Add the modulePathForLinux, which hold the path of module, to WSLENV to help in copying linux scripts to WSL distro.
     # [Environment]::SetEnvironmentVariable("modulePathForLinux", $PSScriptRoot)
     # $p = [Environment]::GetEnvironmentVariable("WSLENV")
     # $p += ":modulePathForLinux/p"
     # [Environment]::SetEnvironmentVariable("WSLENV",$p)
 
+    # Copy the linux scripts to WSL distro
     $moduleVersionOnWin = Get-ModuleVersion
     Write-Debug "Module version on Windows: $moduleVersionOnWin"
-    $moduleVersionOnWSL = Execute-WSL "cat $linuxScriptsPath/$versionFileName 2>/dev/null"
+
+    $moduleVersionOnWSL = Invoke-WSL "cat $linuxScriptsPath/$versionFileName 2>/dev/null"
     Write-Debug "Module version on WSL: $moduleVersionOnWSL"
-    if(($LASTEXITCODE -eq 0) -and ($moduleVersionOnWSL.Trim() -eq $moduleVersionOnWin) -and !$Force)
+
+    if(($LastExitCode -eq 0) -and ($moduleVersionOnWSL.Trim() -eq $moduleVersionOnWin) -and !$Force)
     {
         Write-Debug "WSL Files are upto date. Skipping copying files."
     }
@@ -204,7 +237,7 @@ function Initialize-WSLBlobNFS-Internal
         {
             Write-Debug "Force parameter is provided. Copying files again."
         }
-        elseif ($LASTEXITCODE -ne 0)
+        elseif ($LastExitCode -ne 0)
         {
             Write-Debug "Module is not installed. Copying files again."
         }
@@ -213,19 +246,19 @@ function Initialize-WSLBlobNFS-Internal
             Write-Debug "Module version is changed. Copying files again."
         }
 
-        Copy-WSLFiles
-        if ($LASTEXITCODE -ne 0)
+        Copy-FileInWSL
+        if ($LastExitCode -ne 0)
         {
-            Write-Error "Copying wsl files failed."
+            Write-Error "Copying WSL files failed."
             return
         }
 
-        Execute-WSL "echo $moduleVersionOnWin > $linuxScriptsPath/$versionFileName"
+        Invoke-WSL "echo $moduleVersionOnWin > $linuxScriptsPath/$versionFileName"
     }
 
-    # Install systemd, restart wsl and install NFS & Samba
-    Execute-WSL "systemctl list-unit-files --type=service | grep systemd > /dev/null 2>&1"
-    if($LASTEXITCODE -eq 0 -and !$Force)
+    # Install systemd
+    Invoke-WSL "systemctl list-unit-files --type=service | grep ^systemd- > /dev/null 2>&1"
+    if($LastExitCode -eq 0 -and !$Force)
     {
         Write-Debug "Systemd is already installed. Skipping systemd installation."
     }
@@ -241,23 +274,41 @@ function Initialize-WSLBlobNFS-Internal
             Write-Debug "Systemd is not installed. Installing systemd."
         }
 
-        Execute-WSL "$linuxScriptsPath/$wslScriptName installsystemd"
-        Write-Verbose "Installed systemd."
+        Invoke-WSL "$linuxScriptsPath/$wslScriptName installsystemd"
+        if ($LastExitCode -ne 0)
+        {
+            Write-Error "Installing systemd failed."
 
-        # Shutdown wsl and it will restart with systemd on next wsl command execution
+            $global:LastExitCode = 1
+            return
+        }
+
+        # Shutdown WSL and it will restart with systemd on next WSL command execution
+        # Confirm from user if we can shudown WSL
+        $confirmation = Read-Host -Prompt "WSL $distroName has to be shutdown to install and run systemd. Press y/Y to shutdown WSL."
+        if(-not ($confirmation -eq "y" -or $confirmation -eq "Y"))
+        {
+            Write-Error "Please shutdown WSL manually and then run Initialize-WSLBlobNFS again to continue the setup."
+
+            $global:LastExitCode = 1
+            return
+        }
+
+        Write-Debug "Shutting down WSL $distroName."
         wsl -d $distroName --shutdown
+
+        Write-Success "Installed systemd sucessfully!"
     }
 
-    # wsl shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
+    # WSL shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
     # Check the issue here:
     # https://github.com/microsoft/WSL/issues/10138
-    # To-do: Check if dbus is already running or not.
-    # dbus[488]: Unable to set up transient service directory: XDG_RUNTIME_DIR "/run/user/0/" is owned by uid 1000, not our uid 0
-    # Even if the systemd is installed, we need to run dbus-launch to keep it running.
     wsl -d $distroName --exec dbus-launch true
 
-    Execute-WSL "dpkg -s nfs-common samba > /dev/null 2>&1"
-    if($LASTEXITCODE -eq 0 -and !$Force)
+
+    # Install NFS & Samba
+    Invoke-WSL "dpkg -s nfs-common samba > /dev/null 2>&1"
+    if($LastExitCode -eq 0 -and !$Force)
     {
         Write-Debug "NFS & Samba are already installed. Skipping their installation."
     }
@@ -272,8 +323,8 @@ function Initialize-WSLBlobNFS-Internal
         {
             Write-Debug "NFS & Samba are not installed. Installing NFS & Samba."
         }
-        Execute-WSL "'$linuxScriptsPath/$wslScriptName' installnfssmb $smbUserName"
-        Write-Verbose "Installed NFS & Samba."
+        Invoke-WSL "'$linuxScriptsPath/$wslScriptName' installnfssmb $smbUserName"
+        Write-Success "Installed NFS & Samba successfully!"
     }
 
     if ($initialized)
@@ -284,7 +335,6 @@ function Initialize-WSLBlobNFS-Internal
     {
         Write-Debug "WSL environment for WSLBlobNFS usage is already initialized. Skipping initialization."
     }
-    return
 }
 
 #
@@ -319,9 +369,9 @@ function Install-WSLBlobNFS
     [CmdletBinding()]
     param()
 
-    Intall-WSLBlobNFS-Internal
+    Install-WSLBlobNFS-Internal
 
-    if ($LASTEXITCODE -eq 0)
+    if ($LastExitCode -eq 0)
     {
         # To-do: Prompt user to Initialize-WSLBlobNFS if WSL is already installed.
         Write-Success "WSL is already installed. Run Initialize-WSLBlobNFS to setup WSL environment for WSLBlobNFS usage."
@@ -365,12 +415,12 @@ function Initialize-WSLBlobNFS
     # To-do: Show progress of the script execution.
 
     Initialize-WSLBlobNFS-Internal -Force:$Force
-    if($LASTEXITCODE -ne 0)
+    if($LastExitCode -ne 0)
     {
         return
     }
 
-    Write-Success "WSL environment for WSLBlobNFS usage is initialized. Now, you can mount the smb share using Mount-WSLBlobNFS."
+    Write-Success "WSL environment for WSLBlobNFS usage is initialized. Now, you can mount the SMB share using Mount-WSLBlobNFS."
 }
 
 function Mount-WSLBlobNFS
@@ -406,7 +456,7 @@ function Mount-WSLBlobNFS
     )
 
     Initialize-WSLBlobNFS-Internal
-    if($LASTEXITCODE -ne 0)
+    if($LastExitCode -ne 0)
     {
         return
     }
@@ -418,7 +468,7 @@ function Mount-WSLBlobNFS
             if ((-not (Test-Path ([char]$_ + ":")) -and [string]::IsNullOrWhiteSpace($MountDrive)))
             {
                 $MountDrive = [char]$_ + ":"
-                Write-Host "Using $MountDrive to mount the share."
+                Write-Output "Using $MountDrive to mount the share."
             }})
     }
 
@@ -448,47 +498,46 @@ function Mount-WSLBlobNFS
         $mountParameterType = "remotehost"
     }
 
-    # Temp file to store the share name in wsl
+    # Temp file to store the share name in WSL
     # To-do:
     # - Can we use env variables to store the share name instead of temp file?
-    # - Blocker: Windows spans a new shell and the env variables are forked and changes made in wsl are not available
-    #            in windows.
+    # - Blocker: Windows spans a new shell and the env variables are forked and changes made in WSL are not available in windows.
     # - Check how to not span a new shell for wsl command execution.
     # - https://stackoverflow.com/questions/66150671/wsl-running-linux-commands-with-wsl-exec-cmd-or-wsl-cmd
     $winTempFilePath = New-TemporaryFile
     $wslTempFilePath = ("/mnt/" + ($winTempFilePath.FullName.Replace("\", "/").Replace(":", ""))).ToLower()
 
     Write-Verbose "Mounting $RemoteMount."
-    Execute-WSL "$linuxScriptsPath/$wslScriptName mountshare $mountParameterType '$RemoteMount' '$wslTempFilePath'"
+    Invoke-WSL "$linuxScriptsPath/$wslScriptName mountshare $mountParameterType '$RemoteMount' '$wslTempFilePath'"
 
-    if ($LASTEXITCODE -ne 0)
+    if ($LastExitCode -ne 0)
     {
-        Write-Error "Mounting $RemoteMount failed."
+        Write-Error "Mounting $RemoteMount failed in WSL."
         return
     }
 
     # Get the remote host ip address and the share name
-    $ipaddress = Execute-WSL "hostname -I"
+    $ipaddress = Invoke-WSL "hostname -I"
     $ipaddress = $ipaddress.Trim()
 
     # Read the share name from the temp file
-    $smbsharename = Get-Content $winTempFilePath.FullName
-    Remove-Item $winTempFilePath.FullName
+    $smbShareName = Get-Content $winTempFilePath 2>$null
+    Remove-Item $winTempFilePath 2>$null
 
-    Write-Host "Mounting smb share \\$ipaddress\$smbsharename onto windows mount point $MountDrive"
+    Write-Output "Mounting SMB share \\$ipaddress\$smbShareName onto windows mount point $MountDrive"
 
     $password = $smbUserName
-    net use $MountDrive "\\$ipaddress\$smbsharename" /persistent:yes /user:$smbUserName $password
+    net use $MountDrive "\\$ipaddress\$smbShareName" /persistent:yes /user:$smbUserName $password
 
-    # Rollback the changes in wsl if net use fails.
-    if ($LASTEXITCODE -ne 0)
+    # Rollback the changes in WSL if net use fails.
+    if ($LastExitCode -ne 0)
     {
-        Dismount-WSLMount $smbsharename
+        Dismount-WSLMount $smbShareName
         Write-Error "Mounting '$RemoteMount' failed."
         return
     }
 
-    Write-Success "Mounting smb share done. Now, you can access the share from $MountDrive."
+    Write-Success "Mounting SMB share done. Now, you can access the share from $MountDrive."
 }
 
 # To-do:
@@ -522,12 +571,11 @@ function Dismount-WSLBlobNFS
     [CmdletBinding()]
     param(
         # Mountdrive is mandatory arguments for unmountshare
-        [Parameter(Mandatory = $true)][string]$MountDrive,
-        [Parameter(Mandatory = $false)][switch]$Force
+        [Parameter(Mandatory = $true)][string]$MountDrive
     )
 
     Initialize-WSLBlobNFS-Internal
-    if($LASTEXITCODE -ne 0)
+    if($LastExitCode -ne 0)
     {
         return
     }
@@ -539,11 +587,11 @@ function Dismount-WSLBlobNFS
         return
     }
 
-    $smbmapping = Get-SmbMapping -LocalPath "$MountDrive"
+    $smbmapping = Get-SmbMapping -LocalPath "$MountDrive" 2>$null
 
-    if($smbmapping -eq $null)
+    if($null -eq $smbmapping)
     {
-        Write-Error "No smb share is mounted on $MountDrive."
+        Write-Error "No SMB share is mounted on $MountDrive."
         return
     }
 
@@ -552,25 +600,31 @@ function Dismount-WSLBlobNFS
     $smbexportname = $remotePathTokens[-1].Trim(" ")
     $smbremotehost = $remotePathTokens[2].Trim(" ")
 
-    # check if the remote host is the current wsl ip address
-    $ipaddress = Execute-WSL "hostname -I"
+    # Remote host should be the current WSL's ip address
+    $ipaddress = Invoke-WSL "hostname -I"
     $ipaddress = $ipaddress.Trim()
     if($smbremotehost -ne $ipaddress)
     {
-        Write-Error "The smb share is not mounted from the current wsl ip address."
+        Write-Error "The SMB share is not mounted from the current WSL $distroName."
         return
     }
 
-    Execute-WSL "$linuxScriptsPath/$wslScriptName unmountshare '$smbexportname'"
+    Invoke-WSL "$linuxScriptsPath/$wslScriptName unmountshare '$smbexportname'"
 
-    if ($LASTEXITCODE -ne 0)
+    if ($LastExitCode -ne 0)
     {
-        Write-Error "Unmounting smb share failed in WSL."
+        Write-Error "Unmounting SMB share failed in WSL."
         return
     }
 
     net use $MountDrive /delete
-    Write-Success "Unmounting smb share done."
+    if ($LastExitCode -ne 0)
+    {
+        Write-Error "Unmounting SMB share failed in Windows."
+        return
+    }
+
+    Write-Success "Unmounting SMB share done."
 }
 
 function Dismount-MountInsideWSL
@@ -605,14 +659,14 @@ function Dismount-MountInsideWSL
     )
 
     Initialize-WSLBlobNFS-Internal
-    if($LASTEXITCODE -ne 0)
+    if($LastExitCode -ne 0)
     {
         return
     }
 
     # Don't unmount the share if SMB share is mounted in windows.
     $smbmapping = Get-SmbMapping -RemotePath "$ShareName" 2>$null
-    if($smbmapping -ne $null)
+    if($null -ne $smbmapping)
     {
         Write-Error "SMB share is mounted in windows on $($smbmapping.LocalPath). Use Dismount-WSLBlobNFS $($smbmapping.LocalPath) to unmount the share."
         return
@@ -620,8 +674,8 @@ function Dismount-MountInsideWSL
 
     Write-Verbose "Unmounting $ShareName."
 
-    Execute-WSL "$linuxScriptsPath/$wslScriptName unmountshare '$ShareName'"
-    if ($LASTEXITCODE -ne 0)
+    Invoke-WSL "$linuxScriptsPath/$wslScriptName unmountshare '$ShareName'"
+    if ($LastExitCode -ne 0)
     {
         Write-Error "Unmounting $ShareName failed."
         return
