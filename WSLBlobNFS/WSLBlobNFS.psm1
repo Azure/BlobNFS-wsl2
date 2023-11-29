@@ -3,6 +3,26 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
+<#
+.SYNOPSIS
+    WSLBlobNFS module provides a way to mount Azure Blob NFS share in Windows via WSL.
+
+.DESCRIPTION
+    The native NFS client on Windows is not performant. This module provides a way to mount the Blob NFS share on WSL Linux distro and access the share from Windows.
+    This module helps with the following:
+    1. Install WSL and WSL distro if they are not installed already.
+    2. Initialize WSL environment for Blob NFS usage.
+    3. Mount the Blob NFS share in WSL.
+    4. Dismount the Blob NFS share in WSL.
+
+.LINK
+    https://github.com/Azure/BlobNFS-wsl2
+
+.NOTES
+    Author:  Azure Blob NFS
+    Website: https://github.com/Azure/BlobNFS-wsl2/
+#>
+
 # Throw an error if any cmdlet, function, or command fails or a variable is unknown and stop the script execution.
 Set-PSDebug -Strict
 Set-StrictMode -Version Latest
@@ -33,7 +53,6 @@ $queryScriptName = "query_quota.sh"
 # - Add tests for the module using Pester
 # - Sign the module
 #   https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_output_streams?view=powershell-5.1
-# - Help content for each function: Get-Help <function-name>
 # - Add Uninitialize module support
 # - Add retry logic for each of the commands
 
@@ -207,7 +226,7 @@ function Initialize-WSLBlobNFS-Internal
     $initialized = $false
     if($Force)
     {
-        Write-Warning "Force initializing WSL environment for WSLBlobNFS usage."
+        Write-Warning "Force initializing WSL environment for WSLBlobNFS usage. Existing NFS mounts will be unmounted."
     }
     else
     {
@@ -296,6 +315,33 @@ function Initialize-WSLBlobNFS-Internal
     }
 }
 
+function Dismount-MountInsideWSL
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$ShareName
+    )
+
+    # Don't unmount the share if SMB share is mounted in windows.
+    $smbmapping = Get-SmbMapping -RemotePath "$ShareName" -ErrorAction SilentlyContinue
+    if($null -ne $smbmapping)
+    {
+        Write-Error "SMB share is mounted in windows on $($smbmapping.LocalPath). Use Dismount-WSLBlobNFS $($smbmapping.LocalPath) to unmount the share."
+        return
+    }
+
+    Write-Verbose "Unmounting $ShareName."
+
+    Invoke-WSL "'$modulePathForLinux/$wslScriptName' unmountshare '$ShareName'"
+    if ($LastExitCode -ne 0)
+    {
+        Write-Error "Unmounting $ShareName failed."
+        return
+    }
+
+    Write-Success "Unmounting $ShareName done."
+}
+
 #
 # Public functions
 #
@@ -303,22 +349,17 @@ function Install-WSLBlobNFS
 {
     <#
     .SYNOPSIS
-        Add
+        Install WSL and WSL distro for WSLBlobNFS usage.
 
     .DESCRIPTION
-        Add
-
-    .PARAMETER Add
-        Add
+        This command installs WSL and WSL distro if they are not installed already.
+        Note: You may need to restart the machine to complete WSL installation if WSL is not installed already.
 
     .EXAMPLE
-        Add
+        PS> Install-WSLBlobNFS
 
-    .INPUTS
-        Add
-
-    .OUTPUTS
-        Add
+    .LINK
+        https://github.com/Azure/BlobNFS-wsl2
 
     .NOTES
         Author:  Azure Blob NFS
@@ -356,28 +397,20 @@ function Install-WSLBlobNFS
 
 }
 
-# To-do:
-# - Dismount all the mounted shares before running Initialize again when force is provided.
 function Initialize-WSLBlobNFS
 {
     <#
     .SYNOPSIS
-        Add
+        Setup WSL environment with systemd, NFS, and Samba for WSL Blob NFS usage.
 
     .DESCRIPTION
-        Add
-
-    .PARAMETER Add
-        Add
+        systemd is required to run NFS server in WSL. Then, NFS and Samba are installed to mount the Blob NFS share in WSL and access the share from Windows via SMB respectively.
 
     .EXAMPLE
-        Add
+        PS> Initialize-WSLBlobNFS
 
-    .INPUTS
-        Add
-
-    .OUTPUTS
-        Add
+    .LINK
+        https://github.com/Azure/BlobNFS-wsl2
 
     .NOTES
         Author:  Azure Blob NFS
@@ -386,6 +419,8 @@ function Initialize-WSLBlobNFS
 
     [CmdletBinding()]
     param(
+        # Force initialization of WSL environment. This will unmount all the existing NFS mounts.
+        # This is useful when you want to re-initialize the WSL environment.
         [Parameter(Mandatory = $false)][switch]$Force
     )
 
@@ -416,22 +451,21 @@ function Mount-WSLBlobNFS
 {
     <#
     .SYNOPSIS
-        Add
+        Mount Blob NFS share in Windows via WSL.
 
     .DESCRIPTION
-        Add
-
-    .PARAMETER Add
-        Add
+        This command mounts the provided Blob NFS share in WSL, exports the share via SMB, and mounts the SMB share in Windows.
 
     .EXAMPLE
-        Add
+        PS> Mount-WSLBlobNFS -RemoteMount "account.blob.core.windows.net:account/container"
+        You can just provide the NFSv3 share address as below.
 
-    .INPUTS
-        Add
+    .EXAMPLE
+        PS> Mount-WSLBlobNFS -RemoteMount "mount -t nfs -o vers=3,proto=tcp account.blob.preprod.core.windows.net:/account/container /mnt/nfsv3share"
+        You can also provide the NFS mount command if you want to provide extra mount parameters.
 
-    .OUTPUTS
-        Add
+    .LINK
+        https://github.com/Azure/BlobNFS-wsl2
 
     .NOTES
         Author:  Azure Blob NFS
@@ -440,7 +474,13 @@ function Mount-WSLBlobNFS
 
     [CmdletBinding(PositionalBinding=$true)]
     param(
+        # RemoteMount is your Blob NFS share address or the NFS mount command.
+        # If the RemoteMount is the NFS share address, then the share will be mounted with default mount parameters.
+        # If the RemoteMount is the NFS mount command, then the share will be mounted with the provided mount parameters.
+        # Check the examples for more details.
         [Parameter(Mandatory = $true, Position=0)][string]$RemoteMount,
+
+        # MountDrive is the drive letter to mount the SMB share in Windows.
         [Parameter(Position=1)][string]$MountDrive
     )
 
@@ -547,22 +587,16 @@ function Dismount-WSLBlobNFS
 {
     <#
     .SYNOPSIS
-        Add
+        Dismount your Blob NFS share in Windows.
 
     .DESCRIPTION
-        Add
-
-    .PARAMETER Add
-        Add
+        You can only dismount the Blob NFS share that is mounted using Mount-WSLBlobNFS.
 
     .EXAMPLE
-        Add
+        PS> DisMount-WSLBlobNFS -MountDrive "Z:"
 
-    .INPUTS
-        Add
-
-    .OUTPUTS
-        Add
+    .LINK
+        https://github.com/Azure/BlobNFS-wsl2
 
     .NOTES
         Author:  Azure Blob NFS
@@ -571,7 +605,7 @@ function Dismount-WSLBlobNFS
 
     [CmdletBinding()]
     param(
-        # Mountdrive is mandatory arguments for unmountshare
+        # Mountdrive that has previously mounted Blob NFS share.
         [Parameter(Mandatory = $true)][string]$MountDrive
     )
 
@@ -639,73 +673,5 @@ function Dismount-WSLBlobNFS
 
 }
 
-function Dismount-MountInsideWSL
-{
-    <#
-    .SYNOPSIS
-        Add
-
-    .DESCRIPTION
-        Add
-
-    .PARAMETER Add
-        Add
-
-    .EXAMPLE
-        Add
-
-    .INPUTS
-        Add
-
-    .OUTPUTS
-        Add
-
-    .NOTES
-        Author:  Azure Blob NFS
-        Website: https://github.com/Azure/BlobNFS-wsl2
-    #>
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)][string]$ShareName
-    )
-
-    # Set the verbosity preference for WSL based on the current preferences.
-    $verbosity = 0
-    if($VerbosePreference -eq "Continue")
-    {
-        $verbosity = 1
-    }
-    else
-    {
-        $verbosity = 0
-    }
-    Enable-Verbosity -verbosity $verbosity
-
-    Initialize-WSLBlobNFS-Internal
-    if($LastExitCode -ne 0)
-    {
-        return
-    }
-
-    # Don't unmount the share if SMB share is mounted in windows.
-    $smbmapping = Get-SmbMapping -RemotePath "$ShareName" -ErrorAction SilentlyContinue
-    if($null -ne $smbmapping)
-    {
-        Write-Error "SMB share is mounted in windows on $($smbmapping.LocalPath). Use Dismount-WSLBlobNFS $($smbmapping.LocalPath) to unmount the share."
-        return
-    }
-
-    Write-Verbose "Unmounting $ShareName."
-
-    Invoke-WSL "'$modulePathForLinux/$wslScriptName' unmountshare '$ShareName'"
-    if ($LastExitCode -ne 0)
-    {
-        Write-Error "Unmounting $ShareName failed."
-        return
-    }
-
-    Write-Success "Unmounting $ShareName done."
-}
-
-Export-ModuleMember -Function Install-WSLBlobNFS, Initialize-WSLBlobNFS, Mount-WSLBlobNFS, Dismount-WSLBlobNFS, Dismount-MountInsideWSL
+# This list overrides the list provided in the module manifest (.psd1) file.
+Export-ModuleMember -Function Install-WSLBlobNFS, Initialize-WSLBlobNFS, Mount-WSLBlobNFS, Dismount-WSLBlobNFS

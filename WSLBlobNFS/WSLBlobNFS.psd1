@@ -79,7 +79,7 @@ Description = 'Azure Blob NFS'
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
 # Export functions defined in wsindowsblobnfs.ps1
 # Exported functions will auto-complete on the command line even if the module is not yet loaded.
-FunctionsToExport = @('Install-WSLBlobNFS', 'Initialize-WSLBlobNFS', 'Mount-WSLBlobNFS', 'Dismount-WSLBlobNFS', 'Dismount-MountInsideWSL')
+FunctionsToExport = @('Install-WSLBlobNFS', 'Initialize-WSLBlobNFS', 'Mount-WSLBlobNFS', 'Dismount-WSLBlobNFS')
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = @()
