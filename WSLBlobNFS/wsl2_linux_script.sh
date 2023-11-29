@@ -252,6 +252,13 @@ function mount_share ()
         shareName="nfsv3share-$randomnumber"
     fi
 
+    # Check if the mount path is already mounted
+    mount | grep -q $mountPath
+    if [[ $? == 0 ]]; then
+        eecho "Mount path $mountPath is already mounted. Use a different mount path."
+        exit 1
+    fi
+
     vecho "Mounting NFS share.."
 
     # quote the mount command to preserve the spaces
