@@ -9,33 +9,49 @@
 #
 param(
     [Parameter(Mandatory=$false)]
-    [string]$Path = ".\WSLBlobNFS\WSLBlobNFS.psd1"
+    [string]$ModulePath = ".\WSLBlobNFS"
 )
 
-if(-not (Test-Path $Path))
+if(-not (Test-Path $ModulePath))
 {
-    Write-Error "Path $Path does not exist"
+    Write-Error "Path $ModulePath does not exist"
     exit 1
 }
-Write-Host "Using Path $Path."
-$analyzerInstalled = Get-InstalledModule -Name PSScriptAnalyzer 2> $null
 
+# Create a temp out folder to test the module
+$tempFolder = Join-Path ([System.IO.Path]::GetTempPath()) ("Temp-" + $ModulePath.Split("\")[-1])
+New-Item -Path $tempFolder -ItemType Directory -Force | Out-Null
+Copy-Item -Path $ModulePath -Destination $tempFolder -Force -Recurse
+Write-Host "Copied the module to temp folder $tempFolder to test the module." -ForegroundColor Green
+Write-Host "You can use $tempFolder to for your other tests." -ForegroundColor Green
+
+# Refer to the manifest in the temp folder
+$ManifestPath = Join-Path $tempFolder ($ModulePath.Split("\")[-1]) ($ModulePath.Split("\")[-1] + ".psd1")
+$ScriptPath = Join-Path $tempFolder ($ModulePath.Split("\")[-1]) ($ModulePath.Split("\")[-1] + ".psm1")
+if(-not (Test-Path $ManifestPath) -or -not (Test-Path $ScriptPath))
+{
+    Write-Error "Manifest or script of the module does not exist. Please check"
+    exit 1
+}
+
+# Test-ModuleManifest - Validate the module manifest
+Write-Host "------------------ Running Test-ModuleManifest ------------------"
+$ManifestPath | Test-ModuleManifest -ErrorAction STOP -Verbose
+Write-Host "------------------ Test-ModuleManifest completed ------------------" -ForegroundColor Green
+
+# PS Script Analyzer - Validate the module for issues and warnings
+$analyzerInstalled = Get-InstalledModule -Name PSScriptAnalyzer 2> $null
 if($null -eq $analyzerInstalled)
 {
     # Force is required when you have a older version of the module installed.
-    Install-Module -Name PSScriptAnalyzer -Force
+    # Install-Module -Name PSScriptAnalyzer -Force
 }
-
 Import-Module PSScriptAnalyzer -Force
+Write-Host "------------------ Running Script Analyzer ------------------"
+Invoke-ScriptAnalyzer -Path $ScriptPath
+Write-Host "------------------ Script Analyzer completed ------------------" -ForegroundColor Green
 
-Write-Host "Running Script Analyzer on $Path"
-
-Invoke-ScriptAnalyzer -Path $Path
-
-Write-Host "Script Analyzer completed on $Path" -ForegroundColor Green
-
-Write-Host "Running Test-ModuleManifest on $Path"
-
-$Path | Test-ModuleManifest -ErrorAction STOP -Verbose
-
-Write-Host "Test-ModuleManifest completed on $Path" -ForegroundColor Green
+# Import the module for external usage
+Write-Host "------------------ Importing the module for your usage ------------------"
+Import-Module -Name $ManifestPath -Force
+Write-Host "------------------ Imported the module for your usage ------------------" -ForegroundColor Green

@@ -28,8 +28,8 @@
 # 6 - the softlimit number of inodes
 # 7 - the hardlimit number of inodes
 # 8 (optional) - the number of bytes in a block(default is 1024)
-#
-# Example: get quota command = /usr/local/sbin/query_quota
+
+# Usage Example: get quota command = /usr/local/sbin/query_quota
 
 # To-do: Check if directory is a Blob NFSv3 mount
 echo "0 0 0 0 0 0 0 1024"
