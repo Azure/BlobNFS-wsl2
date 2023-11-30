@@ -138,9 +138,18 @@ function Install-WSLBlobNFS-Internal
     $wslDistros = wsl -l -v 2>&1
     $wslstatus = $LastExitCode
 
-    if($wslstatus -eq 1)
+    # Check the WSL version
+    $wslVersionOp = wsl -v 2>&1
+    $wslstatus1 = $LastExitCode
+
+    if(($wslstatus -ne 0) -or ($wslstatus1 -ne 0))
     {
         Write-Output "WSL is not installed. Installing WSL..."
+
+        # Update wsl to the latest version
+        wsl --update
+        # Set the default version to WSL2
+        wsl --set-default-version 2
 
         wsl --install -d $distroName
 
@@ -161,20 +170,10 @@ function Install-WSLBlobNFS-Internal
         return
     }
 
-    # Check the WSL version
-    $wslVersionOp = wsl -v 2>&1
-
-    if($null -eq $wslVersionOp)
-    {
-        Write-Error "WSL not installed correctly. Please reinstall WSL."
-        $global:LastExitCode = 1
-        return
-    }
-
     # Remove the null character from the output and extract the version number.
     $wslVersionOp = $wslVersionOp -replace '\0', ''
     $wslVersionOp = $wslVersionOp -match 'WSL Version:'
-    $wslVersion = [Version]$wslVersionOp.Split(":")[1].Trim()
+    [Version]$wslVersion = $wslVersionOp.Split(":")[1].Trim()
 
     # Systemd is available after certain WSL version. Hence, this check.
     if($wslversion -lt $minSupportedVersion)

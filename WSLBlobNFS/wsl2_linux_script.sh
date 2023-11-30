@@ -153,7 +153,15 @@ function onetime_samba_setup ()
     if [[ $? == 0 ]]; then
         vecho "get quota command is already set."
     else
-        sed -i "/\[global\]/a get quota command = $(dirname -- $0)/query_quota.sh" /etc/samba/smb.conf
+        scriptPath=$0
+        modulePath=${scriptPath%/*}
+        vecho "Executing: "
+        vecho "/\[global\]/a get quota command = '$modulePath/query_quota.sh'"
+        sed -i "/\[global\]/a get quota command = '$modulePath/query_quota.sh'" /etc/samba/smb.conf
+        if [[ $? != 0 ]]; then
+            eecho "Failed to add get quota command to smb.conf"
+            exit 1
+        fi
         wecho "Quota is not supported for any SMB shares."
     fi
 }
@@ -248,7 +256,7 @@ function mount_share ()
         mkdir -p $mountPath
         vecho "Created $mountPath"
 
-        mountCommand="mount -t nfs -o vers=3,proto=tcp $mountparameter $mountPath"
+        mountCommand="mount -t nfs -o nolock,vers=3,proto=tcp $mountparameter $mountPath"
         shareName="nfsv3share-$randomnumber"
     fi
 
