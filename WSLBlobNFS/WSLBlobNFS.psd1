@@ -20,7 +20,7 @@ RootModule = 'WSLBlobNFS.psm1'
 # To-do:
 # 1. Proper versioning of the script.
 # 2. Automate the versioning and release process.
-ModuleVersion = '1.0.7'
+ModuleVersion = '1.0.8'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -134,7 +134,7 @@ PrivateData = @{
 } # End of PrivateData hashtable
 
 # HelpInfo URI of this module
-# HelpInfoURI = ''
+# HelpInfoURI = 'https://github.com/Azure/BlobNFS-wsl2'
 
 # Default prefix for commands exported from this module. Override the default prefix using Import-Module -Prefix.
 # DefaultCommandPrefix = ''

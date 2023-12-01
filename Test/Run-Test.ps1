@@ -55,3 +55,23 @@ Write-Host "------------------ Script Analyzer completed ------------------" -Fo
 Write-Host "------------------ Importing the module for your usage ------------------"
 Import-Module -Name $ManifestPath -Force
 Write-Host "------------------ Imported the module for your usage ------------------" -ForegroundColor Green
+
+# Installation Test scenarios:
+# WSL core installation
+# WSL update installation
+# Distro installation
+
+# Initialize Test scenarios:
+# - Systemd installation
+# - NFS installation
+# - SMB installation
+
+# Mount Test scenarios:
+# - Successful NFS and SMB mount
+# - Unsuccessful NFS mount
+# - Unsuccessful SMB mount
+
+# Dismount Test scenarios:
+# - Successful NFS and SMB unmount
+# - Unsuccessful NFS unmount
+# - Unsuccessful SMB unmount

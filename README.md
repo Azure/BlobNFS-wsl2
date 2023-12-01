@@ -45,7 +45,12 @@ Install-WSLBlobNFS
 Initialize-WSLBlobNFS
 ```
 
-5. Mount blob nfs storage container to WSL and export it via Samba on the specified drive that you can access from windows:  
+5. Mount blob nfs storage container to WSL and map it via Samba on a drive that you can access from windows:  
+
+> **Note**
+> - We use default mount options for the blob nfs storage container. If you want to use custom mount options, you can provide the complete mount command as a parameter to the Mount-WSLBlobNFS cmdlet.
+> - MountDrive parameter is optional. If not provided, the drive will be automatically assigned.
+> - Check ```Get-Help -Full -Name Mount-WSLBlobNFS``` for more examples.
 
 ```powershell
 Mount-WSLBlobNFS -RemoteMount "<account-name>.blob.core.windows.net:/<account-name>/<container-name>"

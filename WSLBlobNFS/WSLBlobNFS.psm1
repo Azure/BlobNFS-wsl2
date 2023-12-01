@@ -23,6 +23,17 @@
     Website: https://github.com/Azure/BlobNFS-wsl2/
 #>
 
+
+# To-do:
+# - Clear error message and actions to fix those errors.
+# - Add support for cleanup and finding mountmappings
+# - Add tests for the module using Pester
+# - Sign the module
+#   https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_output_streams?view=powershell-5.1
+# - Add Uninitialize module support
+# - Add retry logic for each of the commands
+# - Allow the smb volume (plus nfs volume) to be automounted when user restarts wsl for some reason.
+
 # Throw an error if any cmdlet, function, or command fails or a variable is unknown and stop the script execution.
 Set-PSDebug -Strict
 Set-StrictMode -Version Latest
@@ -47,14 +58,6 @@ $modulePathForLinux = ("/mnt/" + ($modulePathForWin.Replace("\", "/").Replace(":
 
 $wslScriptName = "wsl2_linux_script.sh"
 $queryScriptName = "query_quota.sh"
-
-# To-do:
-# - Add support for cleanup and finding mountmappings
-# - Add tests for the module using Pester
-# - Sign the module
-#   https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_output_streams?view=powershell-5.1
-# - Add Uninitialize module support
-# - Add retry logic for each of the commands
 
 #
 # Internal functions
@@ -222,10 +225,15 @@ function Initialize-WSLBlobNFS-Internal
         return
     }
 
+    # WSL shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
+    # Check the issue here:
+    # https://github.com/microsoft/WSL/issues/10138
+    wsl -d $distroName --exec dbus-launch true
+
     $initialized = $false
     if($Force)
     {
-        Write-Warning "Force initializing WSL environment for WSLBlobNFS usage. Existing NFS mounts will be unmounted."
+        Write-Warning "Force initializing WSL environment for WSLBlobNFS usage. Existing mounts may be lost."
     }
     else
     {
@@ -235,7 +243,7 @@ function Initialize-WSLBlobNFS-Internal
     Format-FilesInWSL
 
     # Install systemd
-    Invoke-WSL "systemctl list-unit-files --type=service | grep ^systemd- > /dev/null 2>&1"
+    Invoke-WSL "systemctl list-unit-files --type=service | grep -q ^systemd-"
     if($LastExitCode -eq 0 -and !$Force)
     {
         Write-Verbose "Systemd is already installed. Skipping systemd installation."
@@ -263,25 +271,37 @@ function Initialize-WSLBlobNFS-Internal
 
         # Shutdown WSL and it will restart with systemd on next WSL command execution
         # Confirm from user if we can shudown WSL
-        $confirmation = Read-Host -Prompt "WSL $distroName has to be shutdown to install and run systemd. Press y/Y to shutdown WSL."
-        if(-not ($confirmation -eq "y" -or $confirmation -eq "Y"))
+        if (!$Force)
         {
-            Write-Error "Setup not comepleted. Allow WSL shutdown to continue the setup."
+            $confirmation = Read-Host -Prompt "WSL $distroName has to be shutdown to install and run systemd. Press y/Y to shutdown WSL. Default is 'y'."
+            if(-not ($confirmation -eq "y" -or $confirmation -eq "Y" -or $confirmation -eq ""))
+            {
+                Write-Error "Setup not comepleted. Allow WSL shutdown to continue the setup."
 
-            $global:LastExitCode = 1
-            return
+                $global:LastExitCode = 1
+                return
+            }
         }
 
         Write-Verbose "Shutting down WSL $distroName."
         wsl -d $distroName --shutdown
 
+        # Since we shutdown WSL, we need to run dbus-launch again.
+        wsl -d $distroName --exec dbus-launch true
+
+        # Check if systemd is properly installed or not.
+        Invoke-WSL "systemctl list-unit-files --type=service | grep -q ^systemd-"
+
+        if($LastExitCode -ne 0)
+        {
+            Write-Error "Systemd installation failed."
+
+            $global:LastExitCode = 1
+            return
+        }
+
         Write-Success "Installed systemd sucessfully!"
     }
-
-    # WSL shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
-    # Check the issue here:
-    # https://github.com/microsoft/WSL/issues/10138
-    wsl -d $distroName --exec dbus-launch true
 
     # Install NFS & Samba
     Invoke-WSL "dpkg -s nfs-common samba > /dev/null 2>&1"
@@ -387,13 +407,12 @@ function Install-WSLBlobNFS
     {
         Write-Success "WSL is already installed. Run Initialize-WSLBlobNFS to setup WSL environment for WSLBlobNFS usage."
 
-        $confirmation = Read-Host -Confirm "Press (y/Y) to run the Initialize-WSLBlobNFS."
-        if($confirmation -eq "y" -or $confirmation -eq "Y")
+        $confirmation = Read-Host -Prompt "Press (y/Y) to run the Initialize-WSLBlobNFS command. Default is 'y'."
+        if($confirmation -eq "y" -or $confirmation -eq "Y" -or $confirmation -eq "")
         {
             Initialize-WSLBlobNFS
         }
     }
-
 }
 
 function Initialize-WSLBlobNFS
@@ -444,6 +463,11 @@ function Initialize-WSLBlobNFS
     }
 
     Write-Success "WSL environment for WSLBlobNFS usage is initialized. Now, you can mount the SMB share using Mount-WSLBlobNFS."
+    $confirmation = Read-Host -Prompt "Press (y/Y) to run the Mount-WSLBlobNFS command. Default is 'y'."
+    if($confirmation -eq "y" -or $confirmation -eq "Y" -or $confirmation -eq "")
+    {
+        Mount-WSLBlobNFS
+    }
 }
 
 function Mount-WSLBlobNFS
@@ -504,14 +528,21 @@ function Mount-WSLBlobNFS
     # Create a new MountDrive if not provided
     if([string]::IsNullOrWhiteSpace($MountDrive))
     {
+        Write-Output "MountDrive parameter is not provided. Finding a free drive letter to mount the share."
         # Get the first free drive letter
         # 65 is the ASCII value of 'A'
         (65..(65+25)).ForEach({
             if ((-not (Get-PSDrive ([char]$_) -ErrorAction SilentlyContinue) -and [string]::IsNullOrWhiteSpace($MountDrive)))
             {
                 $MountDrive = [char]$_ + ":"
-                Write-Output "Using $MountDrive to mount the share."
+                Write-Success "Using $MountDrive to mount the share."
             }})
+
+        if([string]::IsNullOrWhiteSpace($MountDrive))
+        {
+            Write-Error "No free drive letter found to mount the share."
+            return
+        }
     }
 
     # Check if the MountDrive is already in use or not.
@@ -578,6 +609,9 @@ function Mount-WSLBlobNFS
         Write-Error "Mounting '$RemoteMount' failed."
         return
     }
+
+    #  Print the mount mappings
+    Get-SmbMapping -LocalPath "$MountDrive"
 
     Write-Success "Mounting SMB share done. Now, you can access the share from $MountDrive."
 }
@@ -669,7 +703,6 @@ function Dismount-WSLBlobNFS
         return
     }
     Write-Success "Unmounting $MountDrive done."
-
 }
 
 # This list overrides the list provided in the module manifest (.psd1) file.
