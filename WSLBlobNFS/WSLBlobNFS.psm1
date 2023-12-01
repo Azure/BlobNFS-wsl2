@@ -149,12 +149,12 @@ function Install-WSLBlobNFS-Internal
     {
         Write-Output "WSL is not installed. Installing WSL..."
 
+        wsl --install -d $distroName
+
         # Update wsl to the latest version
         wsl --update
         # Set the default version to WSL2
         wsl --set-default-version 2
-
-        wsl --install -d $distroName
 
         if($LastExitCode -ne 0)
         {
