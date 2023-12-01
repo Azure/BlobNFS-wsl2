@@ -375,7 +375,7 @@ function unmount_nfs ()
     mountpoint $mntpath > /dev/null 2>&1
 
     if [[ $? != 0 ]]; then
-        wecho "Mount path $mountPath is not mounted."
+        wecho "Mount path $mntpath is not mounted."
         return 0
     fi
 
