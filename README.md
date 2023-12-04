@@ -3,6 +3,9 @@
 ## Overview
 
 This project is a collection of helper scripts to help you setup a Windows Subsystem for Linux (WSL) environment to mount Azure Blob NFS storage containers and export them to Windows via Samba.
+> **Note**
+> Samba is used to export the mounted blob nfs storage container to Windows since accessing the mounted blob nfs storage container directly from Windows is seen to give lower performance.
+
 
 > **Note**
 > This is work in progress. Please check back for updates.
@@ -79,6 +82,21 @@ To Update the module:
 ```powershell
 Update-Module -Name WSLBlobNFS
 ```
+
+## Help
+
+1. Use -Verbose switch to get verbose output for the cmdlets.
+
+2. Common issues and their solutions:  
+
+    - If you get the following error while running the Mount-WSLBlobNFS cmdlet, then run ```Initialize-WSLBlobNFS -Force``` and try mounting again :  
+
+        ```powershell
+        Mounting SMB share \\<wsl-ip>\<samba-share-name> onto drive A:
+        System error 1272 has occurred.
+
+        You can't access this shared folder because your organization's security policies block unauthenticated guest access. These policies help protect your PC from unsafe or malicious devices on the network.
+        ```
 
 ## Contributing
 

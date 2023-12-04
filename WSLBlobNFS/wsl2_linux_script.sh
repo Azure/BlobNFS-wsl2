@@ -131,9 +131,9 @@ function install_samba ()
 
     vecho "Samba installation output:"
     vecho $op
-    service smbd restart | grep -q fail
+    systemctl restart smbd
 
-    if [[ $? == 0 ]]; then
+    if [[ $? != 0 ]]; then
         eecho "Failed to restart Samba."
         return 1
     fi
@@ -159,12 +159,7 @@ function onetime_samba_setup ()
     # To-do: Need to handle all the cases where a user may already be using samba configuration inside wsl.
 
     # Add get quota script to the Samba global config
-    scriptpath=$0
-    modulepath=${scriptpath%/*}
-    if [[ $modulepath == "" ]]; then
-        eecho "Failed to get the module path."
-        return 1
-    fi
+    modulepath=$(dirname "$0")
 
     vecho "Disabling quota support for all SMB shares on this distro."
     quotaquerycommand="get quota command = '$modulepath/query_quota.sh'"
@@ -222,9 +217,9 @@ function share_via_samba ()
     echo "browseable = yes" >> /etc/samba/smb.conf
 
     # Restart Samba
-    service smbd restart | grep -q fail
+    systemctl restart smbd
 
-    if [[ $? == 0 ]]; then
+    if [[ $? != 0 ]]; then
         eecho "Failed to restart Samba."
         return 1
     fi
@@ -301,8 +296,11 @@ function mount_share ()
                 mkdir -p $mountPath
                 vecho "Created $mountPath"
             else
-                eecho "Mount point $mountPath already exists. Use a different mount point."
-                return 1
+                # Don't allow mounts on non empty directories
+                if [[ "$(ls -1 $mountPath)" ]]; then
+                    eecho "Mount point $mountPath is not empty. Use a different mount point."
+                    return 1
+                fi
             fi
         else
             eecho "Mount point $mountPath is not a path"
@@ -388,8 +386,6 @@ function unmount_nfs ()
         return 1
     fi
 
-    vecho "Removing dir $mntpath"
-    rm -rf $mntpath
     secho "Unmounted NFS mount: $mntpath"
     return 0
 }
@@ -414,7 +410,7 @@ function unmount_share ()
 
     # Take a backup of smb.conf to restore it if the script fails
     rm -f /etc/samba/smb.conf.bak
-    cp -f -T /etc/samba/smb.conf /etc/samba/smb.conf.bak
+    cp -f /etc/samba/smb.conf /etc/samba/smb.conf.bak
 
     # Take the last matching share name
     while IFS= read -r line; do
@@ -454,9 +450,9 @@ function unmount_share ()
         vecho "Removed SMB share with: $smbsharename."
 
         # Restart Samba so that we can unmount the NFS share, else we get "device is busy" error
-        service smbd restart | grep -q fail
+        systemctl restart smbd
 
-        if [[ $? == 0 ]]; then
+        if [[ $? != 0 ]]; then
             eecho "Failed to restart Samba."
             return 1
         fi
@@ -482,9 +478,9 @@ function unmount_share ()
         mv /etc/samba/smb.conf.bak /etc/samba/smb.conf
 
         # Restart Samba
-        service smbd restart | grep -q fail
+        systemctl restart smbd
 
-        if [[ $? == 0 ]]; then
+        if [[ $? != 0 ]]; then
             eecho "Failed to restart Samba."
             return 1
         fi
@@ -558,15 +554,16 @@ elif [[ $1 == "unmountshare" ]]; then
 # if the first argument is resetsamba, then reset samba config and restart samba
 elif [[ $1 == "resetsamba" ]]; then
     vecho "Resetting the Samba setup."
-    # Reset the samba setup
-    rm -f /etc/samba/smb.conf
-    # Copy the default smb.conf to /etc/samba/smb.conf to reset the config
-    vecho "Saving the old smb.conf to /etc/samba/smb.conf.old"
-    cp -T /etc/samba/smb.conf /etc/samba/smb.conf.old
-    cp -T /usr/share/samba/smb.conf /etc/samba/smb.conf
-    service smbd restart | grep -q fail
 
-    if [[ $? == 0 ]]; then
+    vecho "Saving the old smb.conf to /etc/samba/smb.conf.old"
+    cp -f /etc/samba/smb.conf /etc/samba/smb.conf.old
+    rm -f /etc/samba/smb.conf
+
+    # Copy the default smb.conf to /etc/samba/smb.conf to reset the config
+    cp -f /usr/share/samba/smb.conf /etc/samba/smb.conf
+    systemctl restart smbd
+
+    if [[ $? != 0 ]]; then
         eecho "Failed to restart Samba."
         exit 1
     fi

@@ -149,6 +149,10 @@ function Install-WSLBlobNFS-Internal
     {
         Write-Output "WSL is not installed. Installing WSL..."
 
+        # For WSL1 users, we need to update to WSL2 before we install the distro.
+        wsl --update | Out-Null
+        wsl --set-default-version 2 | Out-Null
+
         wsl --install -d $distroName
 
         # Update wsl to the latest version
@@ -225,15 +229,10 @@ function Initialize-WSLBlobNFS-Internal
         return
     }
 
-    # WSL shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
-    # Check the issue here:
-    # https://github.com/microsoft/WSL/issues/10138
-    wsl -d $distroName --exec dbus-launch true
-
     $initialized = $false
     if($Force)
     {
-        Write-Warning "Force initializing WSL environment for WSLBlobNFS usage. Existing mounts may be lost."
+        Write-Warning "Force initializing WSL environment for WSLBlobNFS usage. WSL $distroName will be shutdown and existing mounts may be lost."
     }
     else
     {
@@ -273,10 +272,10 @@ function Initialize-WSLBlobNFS-Internal
         # Confirm from user if we can shudown WSL
         if (!$Force)
         {
-            $confirmation = Read-Host -Prompt "WSL $distroName has to be shutdown to install and run systemd. Press y/Y to shutdown WSL. Default is 'y'."
+            $confirmation = Read-Host -Prompt "WSL $distroName has to be shutdown to install and run systemd. Press y/Y to shutdown WSL or press any key to abort. Default is 'y'."
             if(-not ($confirmation -eq "y" -or $confirmation -eq "Y" -or $confirmation -eq ""))
             {
-                Write-Error "Setup not comepleted. Allow WSL shutdown to continue the setup."
+                Write-Error "Setup not completed. Allow WSL shutdown to continue the setup."
 
                 $global:LastExitCode = 1
                 return
@@ -284,10 +283,9 @@ function Initialize-WSLBlobNFS-Internal
         }
 
         Write-Verbose "Shutting down WSL $distroName."
-        wsl -d $distroName --shutdown
 
-        # Since we shutdown WSL, we need to run dbus-launch again.
-        wsl -d $distroName --exec dbus-launch true
+        # Note: Since we shutdown WSL, we need to run dbus-launch again, otherwise WSL will shutdown after 8 secs of inactivity.
+        wsl -d $distroName --shutdown
 
         # Check if systemd is properly installed or not.
         Invoke-WSL "systemctl list-unit-files --type=service | grep -q ^systemd-"
@@ -302,6 +300,11 @@ function Initialize-WSLBlobNFS-Internal
 
         Write-Success "Installed systemd sucessfully!"
     }
+
+    # WSL shutsdown after 8 secs of inactivity. Hence, we need to run dbus-launch to keep it running.
+    # Check the issue here:
+    # https://github.com/microsoft/WSL/issues/10138
+    wsl -d $distroName --exec dbus-launch true
 
     # Install NFS & Samba
     Invoke-WSL "dpkg -s nfs-common samba > /dev/null 2>&1"
@@ -321,6 +324,13 @@ function Initialize-WSLBlobNFS-Internal
             Write-Verbose "NFS & Samba are not installed. Installing NFS & Samba."
         }
         Invoke-WSL "'$modulePathForLinux/$wslScriptName' installnfssmb $smbUserName"
+        if ($LastExitCode -ne 0)
+        {
+            Write-Error "Installing NFS & Samba failed. Run 'Initialize-WSLBlobNFS -Force' to correctly install NFS & Samba."
+
+            $global:LastExitCode = 1
+            return
+        }
         Write-Success "Installed NFS & Samba successfully!"
     }
 
@@ -463,11 +473,6 @@ function Initialize-WSLBlobNFS
     }
 
     Write-Success "WSL environment for WSLBlobNFS usage is initialized. Now, you can mount the SMB share using Mount-WSLBlobNFS."
-    $confirmation = Read-Host -Prompt "Press (y/Y) to run the Mount-WSLBlobNFS command. Default is 'y'."
-    if($confirmation -eq "y" -or $confirmation -eq "Y" -or $confirmation -eq "")
-    {
-        Mount-WSLBlobNFS
-    }
 }
 
 function Mount-WSLBlobNFS
@@ -530,8 +535,8 @@ function Mount-WSLBlobNFS
     {
         Write-Output "MountDrive parameter is not provided. Finding a free drive letter to mount the share."
         # Get the first free drive letter
-        # 65 is the ASCII value of 'A'
-        (65..(65+25)).ForEach({
+        # 65 is the ASCII value of 'A' and 90 is the ASCII value of 'Z'
+        (90..(65)).ForEach({
             if ((-not (Get-PSDrive ([char]$_) -ErrorAction SilentlyContinue) -and [string]::IsNullOrWhiteSpace($MountDrive)))
             {
                 $MountDrive = [char]$_ + ":"
