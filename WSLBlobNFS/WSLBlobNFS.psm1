@@ -326,7 +326,7 @@ function Initialize-WSLBlobNFS-Internal
         Invoke-WSL "'$modulePathForLinux/$wslScriptName' installnfssmb $smbUserName"
         if ($LastExitCode -ne 0)
         {
-            Write-Error "Installing NFS & Samba failed. Run 'Initialize-WSLBlobNFS -Force' to correctly install NFS & Samba."
+            Write-Error "Installing NFS & Samba failed."
 
             $global:LastExitCode = 1
             return
@@ -534,7 +534,7 @@ function Mount-WSLBlobNFS
     if([string]::IsNullOrWhiteSpace($MountDrive))
     {
         Write-Output "MountDrive parameter is not provided. Finding a free drive letter to mount the share."
-        # Get the first free drive letter
+        # Get the first free drive letter, starting from Z: upto A:
         # 65 is the ASCII value of 'A' and 90 is the ASCII value of 'Z'
         (90..(65)).ForEach({
             if ((-not (Get-PSDrive ([char]$_) -ErrorAction SilentlyContinue) -and [string]::IsNullOrWhiteSpace($MountDrive)))
