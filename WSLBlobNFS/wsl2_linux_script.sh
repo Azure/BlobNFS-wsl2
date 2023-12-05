@@ -297,7 +297,7 @@ function mount_share ()
                 vecho "Created $mountPath"
             else
                 # Don't allow mounts on non empty directories
-                if [[ "$(ls -1 $mountPath)" ]]; then
+                if [[ -n "$(ls -1 $mountPath)" ]]; then
                     eecho "Mount point $mountPath is not empty. Use a different mount point."
                     return 1
                 fi
