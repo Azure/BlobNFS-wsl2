@@ -253,7 +253,7 @@ function mount_nfs ()
 
     # Set the read ahead to 16MB
     vecho "Setting read ahead to 16MB"
-    echo 16384 > /sys/class/bdi/0:$(stat -c "%d" $mountpath)/read_ahead_kb
+    echo 16384 > /sys/class/bdi/0:$(stat -c "%d" "$mountpath")/read_ahead_kb
 
     secho "Mounted NFS share using $mountcommand"
     return 0
@@ -274,7 +274,7 @@ function mount_share ()
     mountparametertype=$1
     mountparameter=$2
     tempfilepath=$3
-    mountPath=""
+    mountpath=""
     shareName=""
     mountCommand=""
 
@@ -287,27 +287,27 @@ function mount_share ()
         IFS=' ' read -ra nametokens <<< "$mountCommand"
 
         # last element is the mount point
-        mountPath=${nametokens[-1]}
+        mountpath=${nametokens[-1]}
 
         # check if the last element is a path
-        if [[ ${mountPath:0:1} == "/" ]]; then
+        if [[ ${mountpath:0:1} == "/" ]]; then
             # check if the path exists
-            if [[ ! -d $mountPath ]]; then
-                mkdir -p $mountPath
-                vecho "Created $mountPath"
+            if [[ ! -d "$mountpath" ]]; then
+                mkdir -p "$mountpath"
+                vecho "Created $mountpath"
             else
                 # Don't allow mounts on non empty directories
-                if [[ -n "$(ls -1 $mountPath)" ]]; then
-                    eecho "Mount point $mountPath is not empty. Use a different mount point."
+                if [[ -n $(ls -1 "$mountpath") ]]; then
+                    eecho "Mount point $mountpath is not empty. Use a different mount point."
                     return 1
                 fi
             fi
         else
-            eecho "Mount point $mountPath is not a path"
+            eecho "Mount point $mountpath is not a path"
             return 1
         fi
 
-        mpath=${mountPath:1}
+        mpath=${mountpath:1}
 
         # replace all / with -
         shareName=${mpath//\//-}
@@ -316,42 +316,42 @@ function mount_share ()
 
         # A random non existent mount path to mount the NFS share
         randomnumber=$RANDOM
-        mountPath="/mnt/nfsv3share-$randomnumber"
+        mountpath="/mnt/nfsv3share-$randomnumber"
 
-        while [[ -e $mountPath ]]; do
+        while [[ -e "$mountpath" ]]; do
             randomnumber=$RANDOM
-            mountPath="/mnt/nfsv3share-$randomnumber"
+            mountpath="/mnt/nfsv3share-$randomnumber"
         done
 
-        mkdir -p $mountPath
-        vecho "Created $mountPath"
+        mkdir -p "$mountpath"
+        vecho "Created $mountpath"
 
-        mountCommand="mount -t nfs -o nolock,vers=3,proto=tcp $mountparameter $mountPath"
+        mountCommand="mount -t nfs -o nolock,vers=3,proto=tcp $mountparameter '$mountpath'"
         shareName="nfsv3share-$randomnumber"
     fi
 
     # Check if the mount path is already mounted
-    mountpoint $mountPath > /dev/null 2>&1
+    mountpoint "$mountpath" > /dev/null 2>&1
     if [[ $? == 0 ]]; then
-        eecho "Mount path $mountPath is already mounted. Use a different mount path."
+        eecho "Mount path $mountpath is already mounted. Use a different mount path."
         return 1
     fi
 
     vecho "Mounting NFS share.."
 
     # quote the mount command to preserve the spaces
-    mount_nfs "$mountCommand" "$mountPath"
+    mount_nfs "$mountCommand" "$mountpath"
 
     if [[ $? != 0 ]]; then
         return 1
     fi
 
     vecho "Exporting NFS share via Samba.."
-    share_via_samba "$shareName" "$mountPath"
+    share_via_samba "$shareName" "$mountpath"
 
     if [[ $? != 0 ]]; then
         # Unmount the NFS share
-        unmount_nfs $mountPath
+        unmount_nfs "$mountpath"
         return 1
     fi
 
