@@ -1,7 +1,80 @@
 #!/bin/bash
 
-# Exit on error and undefined variable
-set -eu
+# --------------------------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for license information.
+# --------------------------------------------------------------------------------------------
+
+# Note: Always quote the parameters to avoid any word splitting or globbing issues while calling the functions.
+
+# Exit on undefined variable
+set -u
+export DEBIAN_FRONTEND=noninteractive
+
+RED="\e[2;31m"
+GREEN="\e[2;32m"
+YELLOW="\e[2;33m"
+NORMAL="\e[0m"
+
+#
+# Core logging function.
+#
+_log()
+{
+    color=$1
+    msg=$2
+    echo -e "${color}${msg}${NORMAL}"
+}
+
+#
+# Plain echo.
+#
+pecho()
+{
+    color=$NORMAL
+    _log $color "${*}"
+}
+
+#
+# Success echo.
+#
+secho()
+{
+    color=$GREEN
+    _log $color "${*}"
+}
+
+#
+# Warning echo.
+#
+wecho()
+{
+    color=$YELLOW
+    _log $color "${*}"
+}
+
+#
+# Error echo.
+#
+eecho()
+{
+    color=$RED
+    _log $color "${*}"
+}
+
+#
+# Verbose echo, no-op unless VERBOSE_MODE variable is set.
+#
+vecho()
+{
+    color=$YELLOW
+
+    # Unless VERBOSE_MODE flag is set, do not echo to console.
+    if [ "$VERBOSE_MODE" != "0" ]; then
+        _log $color "${*}"
+        return
+    fi
+}
 
 ##################################################################
 # 1. Install systemd
@@ -10,9 +83,18 @@ set -eu
 # Install systemd
 function install_systemd ()
 {
-    # To-do: Check if systemd is already installed
-    echo "[boot]" >> /etc/wsl.conf
-    echo "systemd=true" >> /etc/wsl.conf
+    # Note: This works fine in a freshly installed Ubuntu, without prior usage of it with any other boot configuration.
+    #       If the user is using any other boot configuration, then this will override it.
+    #
+    # To-do: Check if the user is using any other boot configuration and warn the user.
+
+    grep -A1 "[boot]" /etc/wsl.conf | grep -q "systemd=true"
+    if [[ $? == 0 ]]; then
+        vecho "systemd is already installed."
+    else
+        echo "[boot]" >> /etc/wsl.conf
+        echo "systemd=true" >> /etc/wsl.conf
+    fi
 }
 
 ##################################################################
@@ -25,31 +107,84 @@ function install_systemd ()
 # Install NFS
 function install_nfs ()
 {
-    apt-get update > /dev/null
-    apt-get upgrade -y > /dev/null
-    apt-get install nfs-common -y > /dev/null
+    # To-do: Use AzNFS.
+    op=$(apt-get install nfs-common -y 2>&1)
+
+    if [[ $? != 0 ]]; then
+        eecho "Failed to install NFS: $op"
+        return 1
+    fi
+
+    vecho "NFS installation output:"
+    vecho $op
 }
 
 # Install Samba
 function install_samba ()
 {
-    apt-get update > /dev/null
-    apt-get upgrade -y > /dev/null
-    apt-get install samba -y > /dev/null
-    service smbd restart > /dev/null
+    op=$(apt-get install samba -y 2>&1)
+
+    if [[ $? != 0 ]]; then
+        eecho "Failed to install Samba: $op"
+        return 1
+    fi
+
+    vecho "Samba installation output:"
+    vecho $op
+    systemctl restart smbd
+
+    if [[ $? != 0 ]]; then
+        eecho "Failed to restart Samba."
+        return 1
+    fi
+
     ufw allow samba > /dev/null
 }
 
 # One time Samba setup to set up the Samba user name and password
 function onetime_samba_setup ()
 {
+    if [[ $# != 1 ]]; then
+        eecho "Usage: onetime_samba_setup [samba username]"
+        return 1
+    fi
+
+    sambausername=$1
+
     # Set username as the password
-    echo "Note: Samba password for $1 is same as the username. This makes it easier to mount shares."
-    # remove "Added user $1" message
-    echo -ne "$1\n$1" | tee - | smbpasswd -a -s $1
+    vecho "Note: Samba password for $sambausername is same as the username. This makes it easier to mount shares."
+    echo -ne "$sambausername\n$sambausername\n" | smbpasswd -a -s $sambausername
+    vecho "Successfully created Samba user $sambausername with password $sambausername."
+
+    # To-do: Need to handle all the cases where a user may already be using samba configuration inside wsl.
 
     # Add get quota script to the Samba global config
-    sed -i "/\[global\]/ a get quota command = $(dirname -- $0)/query_quota.sh" /etc/samba/smb.conf
+    modulepath=$(dirname "$0")
+
+    vecho "Disabling quota support for all SMB shares on this distro."
+    quotaquerycommand="get quota command = '$modulepath/query_quota.sh'"
+
+    # Check if the exact get quota command is already set, if not, then add it.
+    grep -q "^$quotaquerycommand$" /etc/samba/smb.conf
+
+    if [[ $? == 0 ]]; then
+        vecho "get quota command is already set: $quotaquerycommand"
+    else
+        # Remove all the existing get quota commands
+        vecho "Removing all the existing get quota commands."
+        sed -i '/get quota command/d' /etc/samba/smb.conf
+
+        vecho "Executing: "
+        vecho "/\[global\]/a $quotaquerycommand"
+        sed -i "/\[global\]/a $quotaquerycommand" /etc/samba/smb.conf
+
+        if [[ $? != 0 ]]; then
+            eecho "Failed to add get quota command to smb.conf"
+            return 1
+        fi
+    fi
+
+    wecho "Disabled quota support for all SMB shares on this distro!"
 }
 
 ##################################################################
@@ -58,35 +193,224 @@ function onetime_samba_setup ()
 # 2. Export the NFS share via Samba
 ##################################################################
 
+# Setup Samba export
+# $1: share name
+# $2: dir to share
+# To-do:
+# 1. Take a lock on the file
+# 2. Check if the share name already exists
+function share_via_samba ()
+{
+    if [[ $# != 2 ]]; then
+        eecho "Usage: share_via_samba [share name] [dir to share]"
+        return 1
+    fi
+
+    sharename=$1
+    dirtoshare=$2
+
+    echo "[$sharename]" >> /etc/samba/smb.conf
+    echo "comment = Samba on NFSv3 WSL2 setup by Blob NFS scripts" >> /etc/samba/smb.conf
+    echo "path = $dirtoshare" >> /etc/samba/smb.conf
+    echo "read only = no" >> /etc/samba/smb.conf
+    echo "guest ok = yes" >> /etc/samba/smb.conf
+    echo "browseable = yes" >> /etc/samba/smb.conf
+
+    # Restart Samba
+    systemctl restart smbd
+
+    if [[ $? != 0 ]]; then
+        eecho "Failed to restart Samba."
+        return 1
+    fi
+
+    ufw allow samba > /dev/null
+    secho "Created Samba share $shareName."
+    return 0
+}
+
 # Mount NFS
 # $1: mount command
-# To-do: Return the result of the mount command
+# $2: mount path
 function mount_nfs ()
 {
-    echo "Got $# number of args: $*"
-    # execute the mount command passed as the first argument
-    $1
+    if [[ $# != 2 ]]; then
+        eecho "Usage: mount_nfs [mount command] [mount path]"
+        return 1
+    fi
+
+    mountcommand=$1
+    mountpath=$2
+
+    # Execute the mount command
+    op=$(eval $mountcommand 2>&1)
+
+    if [[ $? != 0 ]]; then
+        eecho "Failed to mount NFS share with: $mountcommand:"
+        eecho $op
+        return 1
+    fi
 
     # Set the read ahead to 16MB
-    echo "Setting read ahead to 16MB"
-    cd $2
-    echo 16384 > /sys/class/bdi/0:$(stat -c "%d" .)/read_ahead_kb
-    cd -
+    vecho "Setting read ahead to 16MB"
+    echo 16384 > /sys/class/bdi/0:$(stat -c "%d" "$mountpath")/read_ahead_kb
 
-    echo "Mounted NFS share."
+    secho "Mounted NFS share using $mountcommand"
+    return 0
+}
+
+# Mount SMB and NFS share
+# $1: mount parameter type
+# $2: mount parameter
+# $3: temp file path
+function mount_share ()
+{
+    if [[ $# != 3 ]]; then
+        eecho "Usage: mount_share [mountparametertype] [mountparameter] [tempfilepath]"
+        return 1
+    fi
+
+    # Create the mountpath, sharename, and mountCommand
+    mountparametertype=$1
+    mountparameter=$2
+    tempfilepath=$3
+    mountpath=""
+    shareName=""
+    mountCommand=""
+
+    if [[ $mountparametertype == "command" ]]; then
+        # MountCommand: mount -t nfs -o nolock,vers=3,proto=tcp <account-name>.blob.core.windows.net:/<account-name>/<container-name> /mnt/<path>
+        mountCommand=$mountparameter
+        vecho "Mount command is: $mountCommand"
+
+        # Split the mount command into tokens
+        IFS=' ' read -ra nametokens <<< "$mountCommand"
+
+        # last element is the mount point
+        mountpath=${nametokens[-1]}
+
+        # check if the last element is a path
+        if [[ ${mountpath:0:1} == "/" ]]; then
+            # check if the path exists
+            if [[ ! -d "$mountpath" ]]; then
+                mkdir -p "$mountpath"
+                vecho "Created $mountpath"
+            else
+                # Don't allow mounts on non empty directories
+                if [[ -n $(ls -1 "$mountpath") ]]; then
+                    eecho "Mount point $mountpath is not empty. Use a different mount point."
+                    return 1
+                fi
+            fi
+        else
+            eecho "Mount point $mountpath is not a path"
+            return 1
+        fi
+
+        mpath=${mountpath:1}
+
+        # replace all / with -
+        shareName=${mpath//\//-}
+    else
+        # RemoteHost: <account-name>.blob.core.windows.net:/<account-name>/<container-name>
+
+        # A random non existent mount path to mount the NFS share
+        randomnumber=$RANDOM
+        mountpath="/mnt/nfsv3share-$randomnumber"
+
+        while [[ -e "$mountpath" ]]; do
+            randomnumber=$RANDOM
+            mountpath="/mnt/nfsv3share-$randomnumber"
+        done
+
+        mkdir -p "$mountpath"
+        vecho "Created $mountpath"
+
+        mountCommand="mount -t nfs -o nolock,vers=3,proto=tcp $mountparameter '$mountpath'"
+        shareName="nfsv3share-$randomnumber"
+    fi
+
+    # Check if the mount path is already mounted
+    mountpoint "$mountpath" > /dev/null 2>&1
+    if [[ $? == 0 ]]; then
+        eecho "Mount path $mountpath is already mounted. Use a different mount path."
+        return 1
+    fi
+
+    vecho "Mounting NFS share.."
+
+    # quote the mount command to preserve the spaces
+    mount_nfs "$mountCommand" "$mountpath"
+
+    if [[ $? != 0 ]]; then
+        return 1
+    fi
+
+    vecho "Exporting NFS share via Samba.."
+    share_via_samba "$shareName" "$mountpath"
+
+    if [[ $? != 0 ]]; then
+        # Unmount the NFS share
+        unmount_nfs "$mountpath"
+        return 1
+    fi
+
+    echo "$shareName" > $tempfilepath
+    vecho "Saved the share name ($sharename) to $tempfilepath"
+}
+
+# Unmount NFS
+# $1: mount path
+function unmount_nfs ()
+{
+    if [[ $# != 1 ]]; then
+        eecho "Usage: unmount_nfs [mount path]"
+        return 1
+    fi
+
+    mntpath=$1
+
+    mountpoint $mntpath > /dev/null 2>&1
+
+    if [[ $? != 0 ]]; then
+        wecho "Mount path $mntpath is not mounted."
+        return 0
+    fi
+
+    op=$(umount $mntpath 2>&1)
+
+    # If the umount command fails with 32, then the NFS share is already unmounted
+    if [[ $? != 0 && $? != 32 ]]; then
+        eecho "Failed to unmount NFS share at $mntpath:"
+        eecho $op
+        return 1
+    fi
+
+    secho "Unmounted NFS mount: $mntpath"
+    return 0
 }
 
 # Unmount smb share and NFS share
-# $1: export name
+# $1: share name
 # To-do:
 # 1. Take a lock on the smb file
 function unmount_share ()
 {
+    if [[ $# != 1 ]]; then
+        eecho "Usage: unmount_share [smb share name]"
+        return 1
+    fi
+
+    smbsharename=$1
     mntpath=""
     foundshare=false
     startline=0
     endline=0
     linenum=0
+
+    # Take a backup of smb.conf to restore it if the script fails
+    rm -f /etc/samba/smb.conf.bak
+    cp -f /etc/samba/smb.conf /etc/samba/smb.conf.bak
 
     # Take the last matching share name
     while IFS= read -r line; do
@@ -94,12 +418,12 @@ function unmount_share ()
         linenum=$((linenum + 1))
 
         # exact match of the share name
-        if [[ "$line" == "[$1]" ]]; then
+        if [[ "$line" == "[$smbsharename]" ]]; then
             foundshare=true
             startline=$linenum
 
         # next share name after the target share
-        elif [[ $foundshare == "true" && "$line" == "["*"]" ]]; then
+        elif [[ $foundshare == "true" && "$line" =~ \[.*\] ]]; then
             foundshare=false
             # Current line belongs to a new share. So, the previous line is the end of the share
             endline=$((linenum - 1))
@@ -107,7 +431,8 @@ function unmount_share ()
 
         # If the path is found, get the path of the share and remove the share details from smb.conf
         # Sample line: path = /mnt/nfs/share1
-        if [[ $foundshare == "true" && "$line" == "path"* ]]; then
+        match="path\s*=.*"
+        if [[ $foundshare == "true" && $line =~ $match ]]; then
             # Split the line into tokens
             read -r pathstr eq mntpath <<< "$line"
         fi
@@ -122,57 +447,49 @@ function unmount_share ()
     if [[ $startline < $endline ]]; then
         # Remove the share details from smb.conf
         sed -i "$startline,$endline d" /etc/samba/smb.conf
-        echo "Removed SMB share with: $1."
+        vecho "Removed SMB share with: $smbsharename."
 
         # Restart Samba so that we can unmount the NFS share, else we get "device is busy" error
-        service smbd restart > /dev/null
-    else
-        echo "No SMB share found for $1."
-    fi
+        systemctl restart smbd
 
-    # To-do: copy smb.conf to smb.conf.bak and then remove the share details from smb.conf
-    # so that, if the script fails, the smb.conf can be restored from smb.conf.bak
-
-    # check if the last element is a path
-    if [[ ${mntpath:0:1} == "/" ]]; then
-        # check if the path exists
-        if [[ -d $mntpath ]]; then
-            umount $mntpath
-            echo "Unmounted NFS mount at: $mntpath"
-        else
-            echo "Mount point $mntpath does not exist"
+        if [[ $? != 0 ]]; then
+            eecho "Failed to restart Samba."
+            return 1
         fi
+
+        ufw allow samba > /dev/null
+
     else
-        echo "Mount point $mntpath is not a path"
+        wecho "No SMB share found for $smbsharename."
+
+        # Even if the SMB share is not found, return 0 to let the client unmount it's mapped drive
+        return 0
     fi
-}
 
+    if [[ $mntpath == "" ]]; then
+        secho "No backing dir found for $smbsharename."
+        return 0
+    fi
 
-# Setup Samba export
-# $1: export name
-# $2: mount point
-# To-do:
-# 1. Take a lock on the file
-# 2. Check if the export name already exists
-function export_via_samba ()
-{
-    echo "Got $# number of args: $*"
-    sharename=$1
-    mountpoint=$2
+    unmount_nfs $mntpath
 
-    echo "[$sharename]" >> /etc/samba/smb.conf
-    echo "comment = Samba on NFSv3 WSL2 setup by Blob NFS scripts" >> /etc/samba/smb.conf
-    echo "path = $mountpoint" >> /etc/samba/smb.conf
-    echo "read only = no" >> /etc/samba/smb.conf
-    echo "guest ok = yes" >> /etc/samba/smb.conf
-    echo "browseable = yes" >> /etc/samba/smb.conf
+    if [[ $? != 0 ]]; then
+        # Restore smb.conf
+        mv /etc/samba/smb.conf.bak /etc/samba/smb.conf
 
-    # use testparm to check if the smb.conf is valid
-    # testparm
+        # Restart Samba
+        systemctl restart smbd
 
-    # Restart Samba
-    service smbd restart
-    ufw allow samba
+        if [[ $? != 0 ]]; then
+            eecho "Failed to restart Samba."
+            return 1
+        fi
+
+        ufw allow samba > /dev/null
+
+        vecho "Restored smb.conf and restarted Samba."
+        return 1
+    fi
 }
 
 # if the first argument is installsystemd, then install systemd
@@ -181,51 +498,84 @@ if [[ $1 == "installsystemd" ]]; then
 
 # else if the first argument is installnfssmb, then run the setup steps
 elif [[ $1 == "installnfssmb" ]]; then
-    install_nfs
-    install_samba
-    onetime_samba_setup $2
-
-# else if the first argument is mountshare, then run the mount steps
-elif [[ $1 == "mountshare" ]]; then
-
-    # Split the mount command into tokens
-    IFS=' ' read -ra nametokens <<< "$2"
-    # last element is the mount point
-    mountpoint=${nametokens[-1]}
-    # check if the last element is a path
-    if [[ ${mountpoint:0:1} == "/" ]]; then
-        # check if the path exists
-        if [[ ! -d $mountpoint ]]; then
-            mkdir -p $mountpoint
-            echo "Created $mountpoint"
-        else
-            echo "Mount point $mountpoint already exists"
-        fi
-    else
-        echo "Mount point $mountpoint is not a path"
+    if [[ $# != 2 ]]; then
+        eecho "Usage: $0 [installnfssmb] [sambausername]"
         exit 1
     fi
 
-    echo "Mounting NFS share.."
+    sambausername=$2
 
-    # quote the mount command to preserve the spaces
-    mount_nfs "$2" "$mountpoint"
-    echo "Done NFS mounting."
+    apt-get update > /dev/null
 
-    echo "Exporting NFS share via Samba.."
-    export_via_samba "$3" "$mountpoint"
-    echo "Done Samba exporting."
+    install_nfs
+    if [[ $? != 0 ]]; then
+        exit 1
+    fi
+
+    install_samba
+    if [[ $? != 0 ]]; then
+        exit 1
+    fi
+    onetime_samba_setup "$sambausername"
+    if [[ $? != 0 ]]; then
+        exit 1
+    fi
+
+# else if the first argument is mountshare, then run the mount in nfs and share via samba
+elif [[ $1 == "mountshare" ]]; then
+    if [[ $# != 4 ]]; then
+        eecho "Usage: $0 [mountshare] [mountparametertype] [mountparameter] [tempfilepath]"
+        exit 1
+    fi
+
+    mount_share "$2" "$3" "$4"
+
+    if [[ $? != 0 ]]; then
+        exit 1
+    fi
 
 # if the first argument is unmountshare, then unmount smb and nfs shares
 elif [[ $1 == "unmountshare" ]]; then
-    echo "Got $# number of args: $*"
-    unmount_share $2
-    echo "Removed SMB share and unmounted NFS share."
+    if [[ $# != 2 ]]; then
+        eecho "Usage: $0 [unmountshare] [smbsharename]"
+        exit 1
+    fi
+
+    smbsharename=$2
+
+    unmount_share "$smbsharename"
+
+    if [[ $? != 0 ]]; then
+        exit 1
+    fi
+
+    secho "Removed SMB share and unmounted NFS share."
+
+# if the first argument is resetsamba, then reset samba config and restart samba
+elif [[ $1 == "resetsamba" ]]; then
+    vecho "Resetting the Samba setup."
+
+    vecho "Saving the old smb.conf to /etc/samba/smb.conf.old"
+    cp -f /etc/samba/smb.conf /etc/samba/smb.conf.old
+    rm -f /etc/samba/smb.conf
+
+    # Copy the default smb.conf to /etc/samba/smb.conf to reset the config
+    cp -f /usr/share/samba/smb.conf /etc/samba/smb.conf
+    systemctl restart smbd
+
+    if [[ $? != 0 ]]; then
+        eecho "Failed to restart Samba."
+        exit 1
+    fi
+
+    ufw allow samba > /dev/null
+    secho "Successfully reset Samba setup."
 
 # else, print the usage
 else
-    echo "Usage: $0 <installsystemd>"
-    echo "Usage: $0 <installnfssmb> <samba username>"
-    echo "Usage: $0 <mountshare> <mount command>"
-    echo "Usage: $0 <unmountshare> <smbsharename>"
+    eecho "Usage: $0 [installsystemd]"
+    eecho "Usage: $0 [installnfssmb] [samba username]"
+    eecho "Usage: $0 [mountshare] [mount command]"
+    eecho "Usage: $0 [unmountshare] [smbsharename]"
+    eecho "Usage: $0 [resetsamba]"
 fi

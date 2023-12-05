@@ -1,3 +1,8 @@
+# --------------------------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for license information.
+# --------------------------------------------------------------------------------------------
+
 #
 # Module manifest for module 'WSLBlobNFS'
 #
@@ -12,8 +17,10 @@
 RootModule = 'WSLBlobNFS.psm1'
 
 # Version number of this module.
-# To-do: Proper versioning of the script.
-ModuleVersion = '1.0.2'
+# To-do:
+# 1. Proper versioning of the script.
+# 2. Automate the versioning and release process.
+ModuleVersion = '1.0.11'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -75,13 +82,13 @@ Description = 'Azure Blob NFS'
 FunctionsToExport = @('Install-WSLBlobNFS', 'Initialize-WSLBlobNFS', 'Mount-WSLBlobNFS', 'Dismount-WSLBlobNFS')
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
-CmdletsToExport = '*'
+CmdletsToExport = @()
 
 # Variables to export from this module
 VariablesToExport = '*'
 
 # Aliases to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no aliases to export.
-AliasesToExport = '*'
+AliasesToExport = @()
 
 # DSC resources to export from this module
 # DscResourcesToExport = @()
@@ -127,7 +134,7 @@ PrivateData = @{
 } # End of PrivateData hashtable
 
 # HelpInfo URI of this module
-# HelpInfoURI = ''
+# HelpInfoURI = 'https://github.com/Azure/BlobNFS-wsl2'
 
 # Default prefix for commands exported from this module. Override the default prefix using Import-Module -Prefix.
 # DefaultCommandPrefix = ''
