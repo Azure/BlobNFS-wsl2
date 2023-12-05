@@ -89,14 +89,21 @@ Update-Module -Name WSLBlobNFS
 
 2. Common issues and their solutions:  
 
-    - If you get the following error while running the Mount-WSLBlobNFS cmdlet, then run ```Initialize-WSLBlobNFS -Force``` and try mounting again :  
+    - If you get the following error while running the Mount-WSLBlobNFS cmdlet, do the following and try mount again: 
 
         ```powershell
-        Mounting SMB share \\<wsl-ip>\<samba-share-name> onto drive A:
+        Mounting SMB share \\<wsl-ip>\<samba-share-name> onto drive Z:
         System error 1272 has occurred.
 
         You can't access this shared folder because your organization's security policies block unauthenticated guest access. These policies help protect your PC from unsafe or malicious devices on the network.
         ```
+
+     Commands to resolve the above issue:
+      ```powershell
+        Update-Module WSLBlobNFS
+        Import-Module WSLBlobNFS -Force
+        Initialize-WSLBlobNFS -Force
+      ```
 
 ## Contributing
 
