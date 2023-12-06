@@ -155,6 +155,13 @@ function Install-WSLBlobNFS-Internal
 
         wsl --install -d $distroName
 
+        if ($LastExitCode -ne 0)
+        {
+            Write-Error "WSL installation failed. Try again."
+            $global:LastExitCode = 1
+            return
+        }
+
         # Update wsl to the latest version
         wsl --update
         # Set the default version to WSL2
