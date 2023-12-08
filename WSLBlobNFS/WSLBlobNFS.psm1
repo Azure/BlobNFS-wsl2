@@ -355,7 +355,7 @@ function Install-WSLBlobNFS-Internal
     {
         $wslListOnline = wsl -l -o 2>&1
 
-        if($wslListOnine -ne 0)
+        if($LastExitCode -ne 0)
         {
             Write-Error "Unable to fetch the list of WSL distros: $wslListOnline"
             $global:LastExitCode = 1
@@ -376,11 +376,6 @@ function Install-WSLBlobNFS-Internal
         Write-Output "Installing WSL distro $distroName..."
         Write-Warning "Setup a new user for the distro and exit the distro (using 'exit') to continue the setup."
 
-        # Redirecting the output will also redirect the prompt to setup username and password for the distro.
-        # Hence, we need to run the command without redirection. However, we'll not be able to catch certain errors such as "Virtualization is not enabled".
-        # Write-Warning "Press Enter if the installation is stuck."
-        # $wslDistroInstallation = wsl --install -d $distroName -n
-        # Also, the command waits for the user to Press any key to continue when the above error occurs.
         wsl --install -d $distroName
 
         if($LastExitCode -ne 0)
@@ -390,23 +385,12 @@ function Install-WSLBlobNFS-Internal
             return
         }
 
-        # # Note: When Virtualization is not enabled, the wsl fails to install the distro and returns 0x80370102 in the output but not in the exit code.
-        # $wslDistroInstallation = $wslDistroInstallation -replace '\0', ''
-        # $wslDistroInstallationStatus = $wslDistroInstallation -match "0x80370102"
+        # Check if the distro is installed successfully or not.
+        wsl -d $distroName -u $userName -e bash -c "whoami" | Out-Null
 
-        # if( -not ([string]::IsNullOrWhiteSpace($wslDistroInstallationStatus)))
-        # {
-        #     Write-Error "$wslDistroInstallation `n Virtualization is not enabled. Please check the prerequisites of the module."
-        #     $global:LastExitCode = 1
-        #     return
-        # }
-
-        # Note: When Virtualization is not enabled, the wsl fails to install the distro and returns 0x80370102 in the output but not in the exit code.
-        #       Also, the below prompt is only shown when the distro is being installed for the first time.
-        $confirmation = Read-Host -Prompt "Did you see 'WslRegisterDistribution failed with error: 0x80370102' error? Press (y/Y) to continue and any other key continue. Default is 'n'."
-        if(($confirmation -eq 'Y') -or ($confirmation -eq 'y'))
+        if($LastExitCode -ne 0)
         {
-            Write-Error "WSL distro $distroName installation failed. Check Prerequisites section of the module for more details."
+            Write-Error "WSL distro $distroName installation failed. Check Prerequisites section of the module for help."
             $global:LastExitCode = 1
             return
         }
@@ -414,6 +398,7 @@ function Install-WSLBlobNFS-Internal
         Write-Success "WSL distro $distroName is installed. Run Initialize-WSLBlobNFS to setup WSL environment for WSLBlobNFS usage."
 
         # Since the distro can now be used, we can continue the script execution. Hence, the exit code is 0.
+        $global:LastExitCode = 0
         return
     }
     else
