@@ -2,13 +2,42 @@
 
 ## Overview
 
-This project is a collection of helper scripts to help you setup a Windows Subsystem for Linux (WSL) environment to mount Azure Blob NFS storage containers and export them to Windows via Samba.
-> **Note**
-> Samba is used to export the mounted blob nfs storage container to Windows since accessing the mounted blob nfs storage container directly from Windows is seen to give lower performance.
+This project is a collection of helper scripts to help you setup a Windows Subsystem for Linux (WSL) environment to mount Azure Blob NFS storage containers and export them to Windows via Samba. Samba is used to export the mounted blob nfs storage container to Windows since accessing the mounted blob nfs storage container directly from Windows is seen to give lower performance.
 
 
-> **Note**
+> **Note**  
 > This is work in progress. Please check back for updates.
+
+## Prerequisites
+1. Since this module uses WSL to mount the Blob NFS share, Virtualization must be enabled on the machine.  
+
+    i. If you are installing this module on an Azure VM, then select a VM size that supports nested virtualization. You can check the list of VM SKU that supports nested virtualization. Check [here](https://docs.microsoft.com/en-us/azure/virtual-machines/acu).  
+    For example, Dv5 SKU supports nested virtualization:
+    ![Nested Virtualization support on Azure VMs](/resources/nested-virt.png)
+
+    > **Warning**  
+    > Currently only Dv5 series VMs support nested virtualization with **Trusted Launch** enabled. If you are using a different VM SKU with **Trusted Launch** enabled, then you may see the following error while installing the module. :  
+    > ```powershell
+    > Ubuntu 22.04 LTS is already installed.
+    > Launching Ubuntu 22.04 LTS...
+    > Installing, this may take a few minutes...
+    > WslRegisterDistribution failed with error: 0x80370102
+    > Please enable the Virtual Machine Platform Windows feature and ensure virtualization is enabled in the BIOS.
+    > For information please visit https://aka.ms/enablevirtualization
+    > Press any key to continue...
+    > ```
+    > Create a VM without **Trusted Launch** and try installing the module again.
+    > Check if your VM has **Trusted Launch** enabled under the Security section of the VM blade in the Azure portal.
+    ![Trusted Launch for Azure VMs](/resources/dmaonvms.png)
+    > Check [here](https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch#unsupported-features) for more details on **Trusted Launch**.  
+
+    ii. If you are installing this module on a your own machine, then make sure that the machine virtualization is enabled in the BIOS. Check [here](https://learn.microsoft.com/en-us/windows/wsl/troubleshooting#error-0x80370102-the-virtual-machine-could-not-be-started-because-a-required-feature-is-not-installed) for more details.  
+
+    iii. For any other installation issues, check issues on [WSL troubleshooting guide](https://learn.microsoft.com/en-us/windows/wsl/troubleshooting) or [WSL GitHub repo](https://github.com/Microsoft/wsl/issues).  
+
+2. Follow the steps here to create an Azure Blob NFS storage container: [Create an NFS 3.0 storage container](https://docs.microsoft.com/en-us/azure/storage/blobs/network-file-system-protocol-support-how-to?tabs=azure-portal#create-an-nfs-30-storage-container).
+
+
 
 ## Usage
 
@@ -17,6 +46,7 @@ This project is a collection of helper scripts to help you setup a Windows Subsy
 ```powershell
 Install-Module -Name WSLBlobNFS
 ```
+    Check the above Prerequisite section if you face any errors while installing the module.  
 
 2. Import the module:  
 
@@ -36,7 +66,7 @@ To get help on a specific command:
 Get-Help -Full -Name <command-name>
 ```
 
-3. Install WSL (Restart the machine if wsl is installed for the first time.):  
+3. Install WSL (Restart the machine if WSL is installed for the first time.):  
 
 ```powershell
 Install-WSLBlobNFS
@@ -44,14 +74,19 @@ Install-WSLBlobNFS
 
 4. Setup WSL environment (Installing Ubuntu-22.04 distro, systemd, NFS client, & samba server):  
 
+> **Note**  
+> If Ubuntu-22.04 is being installed for the first time, you will be prompted to create a new user account.  
+> Only after setting up the user account, proceed to Initialize-WSLBlobNFS step.
+
+
 ```powershell
 Initialize-WSLBlobNFS
 ```
 
 5. Mount blob nfs storage container to WSL and map it via Samba on a drive that you can access from windows:  
 
-> **Note**
-> - We use default mount options for the blob nfs storage container. If you want to use custom mount options, you can provide the complete mount command as a parameter to the Mount-WSLBlobNFS cmdlet.
+> **Note**  
+> - The module uses default mount options to mount the blob nfs storage container. If you want to use custom mount options, you can provide the complete mount command as a parameter to the Mount-WSLBlobNFS cmdlet.
 > - MountDrive parameter is optional. If not provided, the drive will be automatically assigned.
 > - Check ```Get-Help -Full -Name Mount-WSLBlobNFS``` for more examples.
 
@@ -98,7 +133,7 @@ Update-Module -Name WSLBlobNFS
         You can't access this shared folder because your organization's security policies block unauthenticated guest access. These policies help protect your PC from unsafe or malicious devices on the network.
         ```
 
-     Commands to resolve the above issue:
+        Commands to resolve the above issue:
       ```powershell
         Update-Module WSLBlobNFS
         Import-Module WSLBlobNFS -Force

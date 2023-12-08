@@ -33,6 +33,9 @@
 # - Add Uninitialize module support
 # - Add retry logic for each of the commands
 # - Allow the smb volume (plus nfs volume) to be automounted when user restarts wsl for some reason.
+# - Check the windows version and throw error if the windows version is not supported.
+# - Check PS version and throw error if the PS version is not supported.
+# - Check if the user has permission to run the commands and throw error if the user doesn't have permission.
 
 # Throw an error if any cmdlet, function, or command fails or a variable is unknown and stop the script execution.
 Set-PSDebug -Strict
@@ -127,9 +130,171 @@ function Format-FilesInWSL
     Invoke-WSL "sed -i -e 's/\r$//' '$modulePathForLinux/$wslScriptName'"
     Invoke-WSL "chmod +x '$modulePathForLinux/$wslScriptName'"
 
+    if($LastExitCode -ne 0)
+    {
+        Write-Error "Failed to update $wslScriptName in WSL."
+        $global:LastExitCode = 1
+        return
+    }
+
     # Files saved from windows will have \r\n line endings. Hence, we need to remove \r.
     Invoke-WSL "sed -i -e 's/\r$//' '$modulePathForLinux/$queryScriptName'"
     Invoke-WSL "chmod +x '$modulePathForLinux/$queryScriptName'"
+
+    if($LastExitCode -ne 0)
+    {
+        Write-Error "Failed to update $modulePathForLinux in WSL."
+        $global:LastExitCode = 1
+        return
+    }
+}
+
+function Install-WSL2
+{
+    [CmdletBinding()]
+    param()
+
+    Write-Verbose "Checking WSL installation status."
+
+    # Check if WSL is installed or not.
+    $wslDistros = wsl -l -v 2>&1
+    $wslstatus = $LastExitCode
+    Write-Verbose "WSL Distros op: $wslDistros"
+    Write-Verbose "WSL Distros status code: $wslstatus"
+
+    # Check the WSL version
+    $wslVersionOp = wsl -v 2>&1
+    $wslstatus1 = $LastExitCode
+    Write-Verbose "WSL Version op: $wslVersionOp"
+    Write-Verbose "WSL Version status code: $wslstatus1"
+
+    # Avoid collecting computer info path if everything is already installed and return from here.
+    # WSL2 and a distro is already present.
+    if(($wslstatus -eq 0) -and ($wslstatus1 -eq 0))
+    {
+        Write-Verbose "WSL2 is already installed. Checking for updates."
+        $wslupdate = wsl --update 2>&1
+
+        if ($LastExitCode -ne 0)
+        {
+            # Since WSL2 is already installed, we can continue the script execution. Hence, the exit code is 0.
+            Write-Warning "WSL2 update failed: $wslupdate"
+        }
+        else
+        {
+            Write-Verbose "WSL2 is already installed and updated!"
+        }
+
+        $global:LastExitCode = 0
+        return
+    }
+
+    # Check if the device support virtualization or not.
+    $compInfo = Get-ComputerInfo
+    $winEdition = $compInfo.OsName
+    Write-Verbose "Windows edition: $winEdition"
+
+    $deviceProtectionStatus = $compInfo.DeviceGuardAvailableSecurityProperties
+    Write-Verbose "Device protection status: $deviceProtectionStatus"
+
+    # Check if the device protection is enabled or not.
+    $dmaStatus = $false
+    $deviceProtectionStatus.ForEach({
+        if($_ -eq "DMAProtection")
+        {
+            $dmaStatus = $true
+        }
+    })
+
+    if (($winEdition -match "Azure") -and ($dmaStatus -eq $true))
+    {
+        Write-Warning "Note: Currently only Dv5 Azure VMs with Trusted Launch supported nested virtualization. Make sure that the VM is Dv5 or that Trusted Launch is disabled. Check the prerequisites section of the module for more details."
+    }
+
+    # No presence of WSL
+    if(($wslstatus -eq 1) -and ($wslstatus1 -eq 1))
+    {
+        Write-Output "WSL2 is not installed. Installing WSL2..."
+
+        wsl --install --no-distribution
+
+        if ($LastExitCode -ne 0)
+        {
+            Write-Error "WSL2 installation failed. Try again."
+            $global:LastExitCode = 1
+            return
+        }
+
+        Write-Success "Successfully installed WSL2! "
+
+        Write-Success "Restart the machine to complete WSL2 setup."
+
+        # Restart computer to complete WSL installation.
+        Restart-Computer -Confirm
+
+        Write-Error "Setup not completed. Restart the machine to complete WSL2 setup."
+
+        # Set the exit code to 1 to indicate that the script execution is not completed.
+        $global:LastExitCode = 1
+        return
+    }
+
+    # To-do: Check the error codes when wsl1 is installed.
+    # When WSL1 is present.
+    # wslstatus is immaterial here, since wsl1 is already installed.
+    # On windows server, you may get wslstatus as -1 while on windows enterprise, you may get wslstatus as 0.
+    elseif ((($wslstatus -eq -1) -or ($wslstatus -eq 0)) -and $wslstatus1 -eq -1)
+    {
+        Write-Output "Updating WSL to WSL2."
+        wsl --update
+        if ($LastExitCode -ne 0)
+        {
+            Write-Error "WSL2 update failed. Try again."
+            $global:LastExitCode = 1
+            return
+        }
+
+        # Wait for 8 secs for the upgrade to finish.
+        Write-Output "Waiting 8 secs for the WSL upgrade to finish.."
+        Start-Sleep -s 8
+
+        $wslstatus1 = wsl -v 2>&1
+
+        if ($LastExitCode -ne 0)
+        {
+            Write-Error "WSL2 update failed with error: $wslstatus1. Try again."
+            $global:LastExitCode = 1
+            return
+        }
+
+        Write-Success "Successfully updated WSL to WSL2!"
+    }
+
+    # WSL2 installed but the distro is not installed.
+    elseif (($wslstatus -eq -1) -and ($wslstatus1 -eq 0))
+    {
+        Write-Verbose "WSL2 is already installed. Checking for updates."
+        $wslupdate = wsl --update 2>&1
+
+        if ($LastExitCode -ne 0)
+        {
+            # Since WSL2 is already installed, we can continue the script execution. Hence, the exit code is 0.
+            Write-Warning "WSL2 update failed: $wslupdate"
+        }
+        else
+        {
+            Write-Verbose "WSL2 is already installed and updated!"
+        }
+    }
+
+    # Print a warning message and proceed. The other part of the script will the distro installation and version support.
+    else
+    {
+        Write-Warning "WSL2 installation status is unknown. `n WSL Distros op: $wslDistros `n WSL Distros status code: $wslstatus `n WSL Version op: $wslVersionOp `n WSL Version status code: $wslstatus1"
+    }
+
+    $global:LastExitCode = 0
+    return
 }
 
 function Install-WSLBlobNFS-Internal
@@ -137,49 +302,31 @@ function Install-WSLBlobNFS-Internal
     [CmdletBinding()]
     param()
 
-    # Check if WSL is installed or not.
-    $wslDistros = wsl -l -v 2>&1
-    $wslstatus = $LastExitCode
-
-    # Check the WSL version
-    $wslVersionOp = wsl -v 2>&1
-    $wslstatus1 = $LastExitCode
-
-    if(($wslstatus -ne 0) -or ($wslstatus1 -ne 0))
+    Install-WSL2
+    if($LastExitCode -ne 0)
     {
-        Write-Output "WSL is not installed. Installing WSL..."
-
-        # For WSL1 users, we need to update to WSL2 before we install the distro.
-        wsl --update | Out-Null
-        wsl --set-default-version 2 | Out-Null
-
-        wsl --install -d $distroName
-
-        if ($LastExitCode -ne 0)
-        {
-            Write-Error "WSL installation failed. Try again."
-            $global:LastExitCode = 1
-            return
-        }
-
-        # Update wsl to the latest version
-        wsl --update | Out-Null
-        # Set the default version to WSL2
-        wsl --set-default-version 2 | Out-Null
-
-        Write-Success "WSL distro $distroName successfully installed!"
-
-        Write-Success "Restart the machine to complete WSL installation, and then run Initialize-WSLBlobNFS to continue the WSL setup."
-        Restart-Computer -Confirm
-
-        # Set the exit code to 1 to indicate that the script execution is not completed.
-        $global:LastExitCode = 1
         return
     }
 
     # Remove the null character from the output and extract the version number.
+    $wslVersionOp = wsl -v
+
+    if($LastExitCode -ne 0)
+    {
+        Write-Error "WSL2 version check failed."
+        $global:LastExitCode = 1
+        return
+    }
+
     $wslVersionOp = $wslVersionOp -replace '\0', ''
     $wslVersionOp = $wslVersionOp -match 'WSL Version:'
+    if([string]::IsNullOrWhiteSpace($wslVersionOp))
+    {
+        Write-Error "WSL version check failed."
+        $global:LastExitCode = 1
+        return
+    }
+
     [Version]$wslVersion = $wslVersionOp.Split(":")[1].Trim()
 
     # Systemd is available after certain WSL version. Hence, this check.
@@ -191,12 +338,49 @@ function Install-WSLBlobNFS-Internal
     }
 
     # Check if the distro is installed or not.
+    # If WSL2 installed but the distro is not installed, then wsl -l -v will return -1.
+    $wslDistros = wsl -l -v
+
+    if( -not (($LastExitCode -eq 0) -or ($LastExitCode -eq -1)))
+    {
+        Write-Error "WSL distro check failed."
+        $global:LastExitCode = 1
+        return
+    }
+
     $wslDistros = $wslDistros -replace '\0', ''
-    $distroStatus = $wslDistros -match "Ubuntu-22.04"
+    $distroStatus = $wslDistros -match $distroName
 
     if([string]::IsNullOrWhiteSpace($distroStatus))
     {
-        Write-Output "WSL distro $distroName is not installed. Installing WSL distro $distroName..."
+        $wslListOnline = wsl -l -o 2>&1
+
+        if($wslListOnine -ne 0)
+        {
+            Write-Error "Unable to fetch the list of WSL distros: $wslListOnline"
+            $global:LastExitCode = 1
+            return
+        }
+
+        Write-Output "WSL distro $distroName is not installed. WSL distro $distroName will be installed. Without this distro, you cannot mount the Blob NFS share in WSL."
+
+        $confirmation = Read-Host -Prompt "Press (y/Y) to install WSL distro $distroName. Default is 'y'."
+
+        if(-not (($confirmation -eq 'Y') -or ($confirmation -eq 'y') -or ($confirmation -eq '')))
+        {
+            Write-Error "Setup not completed. Allow WSL distro installation to continue the setup."
+            $global:LastExitCode = 1
+            return
+        }
+
+        Write-Output "Installing WSL distro $distroName..."
+        Write-Warning "Setup a new user for the distro and exit the distro (using 'exit') to continue the setup."
+
+        # Redirecting the output will also redirect the prompt to setup username and password for the distro.
+        # Hence, we need to run the command without redirection. However, we'll not be able to catch certain errors such as "Virtualization is not enabled".
+        # Write-Warning "Press Enter if the installation is stuck."
+        # $wslDistroInstallation = wsl --install -d $distroName -n
+        # Also, the command waits for the user to Press any key to continue when the above error occurs.
         wsl --install -d $distroName
 
         if($LastExitCode -ne 0)
@@ -206,10 +390,35 @@ function Install-WSLBlobNFS-Internal
             return
         }
 
+        # # Note: When Virtualization is not enabled, the wsl fails to install the distro and returns 0x80370102 in the output but not in the exit code.
+        # $wslDistroInstallation = $wslDistroInstallation -replace '\0', ''
+        # $wslDistroInstallationStatus = $wslDistroInstallation -match "0x80370102"
+
+        # if( -not ([string]::IsNullOrWhiteSpace($wslDistroInstallationStatus)))
+        # {
+        #     Write-Error "$wslDistroInstallation `n Virtualization is not enabled. Please check the prerequisites of the module."
+        #     $global:LastExitCode = 1
+        #     return
+        # }
+
+        # Note: When Virtualization is not enabled, the wsl fails to install the distro and returns 0x80370102 in the output but not in the exit code.
+        #       Also, the below prompt is only shown when the distro is being installed for the first time.
+        $confirmation = Read-Host -Prompt "Did you see 'WslRegisterDistribution failed with error: 0x80370102' error? Press (y/Y) to continue and any other key continue. Default is 'n'."
+        if(($confirmation -eq 'Y') -or ($confirmation -eq 'y'))
+        {
+            Write-Error "WSL distro $distroName installation failed. Check Prerequisites section of the module for more details."
+            $global:LastExitCode = 1
+            return
+        }
+
         Write-Success "WSL distro $distroName is installed. Run Initialize-WSLBlobNFS to setup WSL environment for WSLBlobNFS usage."
 
         # Since the distro can now be used, we can continue the script execution. Hence, the exit code is 0.
         return
+    }
+    else
+    {
+        Write-Verbose "WSL distro $distroName is already installed. This distro will be used for Blob NFS usage."
     }
 }
 
@@ -537,7 +746,7 @@ function Mount-WSLBlobNFS
         # Get the first free drive letter, starting from Z: upto A:
         # 65 is the ASCII value of 'A' and 90 is the ASCII value of 'Z'
         (90..(65)).ForEach({
-            if ((-not (Get-PSDrive ([char]$_) -ErrorAction SilentlyContinue) -and [string]::IsNullOrWhiteSpace($MountDrive)))
+            if((-not (Get-PSDrive ([char]$_) -ErrorAction SilentlyContinue) -and [string]::IsNullOrWhiteSpace($MountDrive)))
             {
                 $MountDrive = [char]$_ + ":"
                 Write-Success "Using $MountDrive to mount the share."

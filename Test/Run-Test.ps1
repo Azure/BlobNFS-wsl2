@@ -48,7 +48,22 @@ if($null -eq $analyzerInstalled)
 }
 Import-Module PSScriptAnalyzer -Force
 Write-Host "------------------ Running Script Analyzer ------------------"
-Invoke-ScriptAnalyzer -Path $ScriptPath
+
+$scriptErrors = Invoke-ScriptAnalyzer -Path $ScriptPath -Severity ParseError, Error
+if($scriptErrors.Count -gt 0)
+{
+    Write-Error "Script Analyzer found $($scriptErrors.Count) errors in the module. Please fix them before publishing the module."
+    $scriptErrors | Format-Table -AutoSize
+    exit 1
+}
+
+$scriptErrors = Invoke-ScriptAnalyzer -Path $ScriptPath -Severity Warning, Information
+if($scriptErrors.Count -gt 0)
+{
+    Write-Warning "Script Analyzer found $($scriptErrors.Count) warnings in the module. Please fix them before publishing the module."
+    $scriptErrors | Format-Table -AutoSize
+}
+
 Write-Host "------------------ Script Analyzer completed ------------------" -ForegroundColor Green
 
 # Import the module for external usage
