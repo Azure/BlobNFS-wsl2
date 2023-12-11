@@ -591,7 +591,7 @@ function Initialize-WSLBlobNFS-Internal
         Write-Success "Installed NFS & Samba successfully!"
     }
 
-    # Register a scheduled job to run Blob NFS usage on startup.
+    # Register a scheduled job to auto mount Blob NFS shares on startup.
     Register-WSLBlobNFS-Startup
 
     if($LastExitCode -ne 0)
@@ -916,6 +916,14 @@ function Assert-PipelineWSLBlobNFS-Internal
         }
         else
         {
+            # Remove the SMB mapping and add again to avoid having to authenticate again in the explorer.
+            net use $mountDrive /delete /yes | Out-Null
+            if($LastExitCode -ne 0)
+            {
+                Write-Error "Unable to mount $mountDrive in Windows."
+                return
+            }
+            net use $mountDrive "\\$ipaddress\$smbexportname" /persistent:yes /user:$smbUserName $smbUserName | Out-Null
             Write-Success "The $mountDrive is mounted in WSL $distroName via $smbexportname SMB share."
         }
     }
@@ -1063,7 +1071,8 @@ function Dismount-WSLBlobNFS
         return
     }
 
-    net use $MountDrive /delete | Out-Null
+    # Force delete when we have open files in the share.
+    net use $MountDrive /delete /yes | Out-Null
     if($LastExitCode -ne 0)
     {
         Write-Error "Unmounting $MountDrive failed in Windows."

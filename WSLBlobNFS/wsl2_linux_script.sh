@@ -502,7 +502,7 @@ function check_mount
 
     smbsharename=$1
     mntpath=""
-    comments=""
+    mountcommand=""
     foundshare=false
 
     # Check if the share name exists in smb.conf
@@ -537,16 +537,16 @@ function check_mount
         match="comment\s*=.*"
         if [[ $foundshare == "true" && $line =~ $match ]]; then
             # Split the line into tokens
-            read -r commentstr eq comments <<< "$line"
+            read -r commentstr eq mountcommand <<< "$line"
         fi
     done < /etc/samba/smb.conf
 
-    if [[ $comments == "" ]]; then
+    if [[ $mountcommand == "" ]]; then
         secho "No backing Blob NFS share found for $smbsharename."
         return 0
     fi
 
-    IFS=' ' read -ra nametokens <<< "$comments"
+    IFS=' ' read -ra nametokens <<< "$mountcommand"
     mountpathfromcmd=${nametokens[-1]}
     remotehost=${nametokens[-2]}
 
@@ -561,7 +561,7 @@ function check_mount
     # If Blob NFS share is not mounted, then mount it
     if [[ $? != 0 ]]; then
         # quote the mount command to preserve the spaces
-        mount_nfs "$mountCommand" "$mntpath"
+        mount_nfs "$mountcommand" "$mntpath"
 
         if [[ $? != 0 ]]; then
             return 1
