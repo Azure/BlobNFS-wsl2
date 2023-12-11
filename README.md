@@ -9,7 +9,11 @@ This project is a collection of helper scripts to help you setup a Windows Subsy
 > This is work in progress. Please check back for updates.
 
 ## Prerequisites
-1. Since this module uses WSL to mount the Blob NFS share, Virtualization must be enabled on the machine.  
+1. WSL is available only on 64 bit machines. Further, only use 64 bit version of the Powershell to use the module.  
+
+2. WSL2 commands are supported only on Windows 10, version 2004 or higher, and Windows Server 2022, version 2009 or higher. Check [here](https://learn.microsoft.com/en-us/windows/wsl/install#prerequisites) for more details.  
+
+3. Since this module uses WSL to mount the Blob NFS share, Virtualization must be enabled on the machine.  
 
     i. If you are installing this module on an Azure VM, then select a VM size that supports nested virtualization. You can check the list of VM SKU that supports nested virtualization. Check [here](https://docs.microsoft.com/en-us/azure/virtual-machines/acu).  
     For example, Dv5 SKU supports nested virtualization:
@@ -35,7 +39,7 @@ This project is a collection of helper scripts to help you setup a Windows Subsy
 
     iii. For any other installation issues, check issues on [WSL troubleshooting guide](https://learn.microsoft.com/en-us/windows/wsl/troubleshooting) or [WSL GitHub repo](https://github.com/Microsoft/wsl/issues).  
 
-2. Follow the steps here to create an Azure Blob NFS storage container: [Create an NFS 3.0 storage container](https://docs.microsoft.com/en-us/azure/storage/blobs/network-file-system-protocol-support-how-to?tabs=azure-portal#create-an-nfs-30-storage-container).
+4. Follow the steps here to create an Azure Blob NFS storage container: [Create an NFS 3.0 storage container](https://docs.microsoft.com/en-us/azure/storage/blobs/network-file-system-protocol-support-how-to?tabs=azure-portal#create-an-nfs-30-storage-container).
 
 
 

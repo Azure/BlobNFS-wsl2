@@ -201,16 +201,17 @@ function onetime_samba_setup ()
 # 2. Check if the share name already exists
 function share_via_samba ()
 {
-    if [[ $# != 2 ]]; then
-        eecho "Usage: share_via_samba [share name] [dir to share]"
+    if [[ $# != 3 ]]; then
+        eecho "Usage: share_via_samba [share name] [mount command] [dir to share]"
         return 1
     fi
 
     sharename=$1
-    dirtoshare=$2
+    mountcommand=$2
+    dirtoshare=$3
 
     echo "[$sharename]" >> /etc/samba/smb.conf
-    echo "comment = Samba on NFSv3 WSL2 setup by Blob NFS scripts" >> /etc/samba/smb.conf
+    echo "comment = $mountcommand" >> /etc/samba/smb.conf
     echo "path = $dirtoshare" >> /etc/samba/smb.conf
     echo "read only = no" >> /etc/samba/smb.conf
     echo "guest ok = yes" >> /etc/samba/smb.conf
@@ -347,7 +348,7 @@ function mount_share ()
     fi
 
     vecho "Exporting NFS share via Samba.."
-    share_via_samba "$shareName" "$mountpath"
+    share_via_samba "$shareName" "$mountCommand" "$mountpath"
 
     if [[ $? != 0 ]]; then
         # Unmount the NFS share
@@ -492,6 +493,85 @@ function unmount_share ()
     fi
 }
 
+function check_mount
+{
+    if [[ $# != 1 ]]; then
+        eecho "Usage: check_mount [smb share name]"
+        return 1
+    fi
+
+    smbsharename=$1
+    mntpath=""
+    comments=""
+    foundshare=false
+
+    # Check if the share name exists in smb.conf
+    grep -q "^\\[$smbsharename\\]$" /etc/samba/smb.conf
+    if [[ $? != 0 ]]; then
+        eecho "SMB share $smbsharename does not exist."
+        return 1
+    fi
+
+    # Check if the share is mounted
+    # Take the last matching share name
+    while IFS= read -r line; do
+
+        # exact match of the share name
+        if [[ "$line" == "[$smbsharename]" ]]; then
+            foundshare=true
+
+        # next share name after the target share
+        elif [[ $foundshare == "true" && "$line" =~ \[.*\] ]]; then
+            foundshare=false
+        fi
+
+        # If the path is found, get the path of the share and remove the share details from smb.conf
+        # Sample line: path = /mnt/nfs/share1
+        match="path\s*=.*"
+        if [[ $foundshare == "true" && $line =~ $match ]]; then
+            # Split the line into tokens
+            read -r pathstr eq mntpath <<< "$line"
+        fi
+
+        # If the path is found, get the comment of the share to get the nfs mount command
+        match="comment\s*=.*"
+        if [[ $foundshare == "true" && $line =~ $match ]]; then
+            # Split the line into tokens
+            read -r commentstr eq comments <<< "$line"
+        fi
+    done < /etc/samba/smb.conf
+
+    if [[ $comments == "" ]]; then
+        secho "No backing Blob NFS share found for $smbsharename."
+        return 0
+    fi
+
+    IFS=' ' read -ra nametokens <<< "$comments"
+    mountpathfromcmd=${nametokens[-1]}
+    remotehost=${nametokens[-2]}
+
+    # Mount paths from the mount command and smb.conf should match
+    if [[ $mntpath == $mountpathfromcmd ]]; then
+        eecho "SMB conf is corrupted. Mismatch between the mount path and the path in the mount command."
+        return 1
+    fi
+
+    mountpoint $mntpath > /dev/null 2>&1
+
+    # If Blob NFS share is not mounted, then mount it
+    if [[ $? != 0 ]]; then
+        # quote the mount command to preserve the spaces
+        mount_nfs "$mountCommand" "$mntpath"
+
+        if [[ $? != 0 ]]; then
+            return 1
+        fi
+    else
+        vecho "Blob NFS share $smbsharename is already mounted."
+        return 0
+    fi
+}
+
 # if the first argument is installsystemd, then install systemd
 if [[ $1 == "installsystemd" ]]; then
     install_systemd
@@ -571,6 +651,19 @@ elif [[ $1 == "resetsamba" ]]; then
     ufw allow samba > /dev/null
     secho "Successfully reset Samba setup."
 
+elif [[ $1 == "checkmount" ]]; then
+    if [[ $# != 2 ]]; then
+        eecho "Usage: $0 [checkmount] [smbsharename]"
+        exit 1
+    fi
+
+    smbsharename=$2
+    check_mount "$smbsharename"
+
+    if [[ $? != 0 ]]; then
+        exit 1
+    fi
+
 # else, print the usage
 else
     eecho "Usage: $0 [installsystemd]"
@@ -578,4 +671,5 @@ else
     eecho "Usage: $0 [mountshare] [mount command]"
     eecho "Usage: $0 [unmountshare] [smbsharename]"
     eecho "Usage: $0 [resetsamba]"
+    eecho "Usage: $0 [checkmount] [smbsharename]"
 fi
