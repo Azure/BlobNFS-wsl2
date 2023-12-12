@@ -32,7 +32,6 @@
 #   https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_output_streams?view=powershell-5.1
 # - Add Uninitialize module support
 # - Add retry logic for each of the commands
-# - Allow the smb volume (plus nfs volume) to be auto mounted when user restarts wsl for some reason.
 # - Check if the user has permission to run the commands and throw error if the user doesn't have permission.
 
 # Throw an error if any cmdlet, function, or command fails or a variable is unknown and stop the script execution.
@@ -326,14 +325,56 @@ function Install-WSL2
     return
 }
 
+# function Register-WSLBlobNFS-Startup
+# {
+#     Write-Verbose "Initializing WSL environment for WSLBlobNFS usage on startup."
+
+#     if($LastExitCode -ne 0)
+#     {
+#         Write-Error "Importing PSScheduledJob module failed."
+#         $global:LastExitCode = 1
+#         return
+#     }
+
+#     $taskName = "AutoMountWSLBlobNFS"
+#     $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+#     if ($task -ne $null)
+#     {
+#         Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+#     }
+
+#     $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument 'Import-Module WSLBlobNFS -Force; Assert-PipelineWSLBlobNFS"'
+#     $trigger = New-ScheduledTaskTrigger -AtStartup -RandomDelay 00:00:30
+#     $settings = New-ScheduledTaskSettingsSet
+
+#     $principal = New-ScheduledTaskPrincipal -UserId SYSTEM -LogonType ServiceAccount -RunLevel Highest
+
+#     $definition = New-ScheduledTask -Action $action -Principal $principal -Trigger $trigger -Settings $settings -Description "Run $($taskName) at startup"
+
+#     Register-ScheduledTask -TaskName $taskName -InputObject $definition
+
+#     $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+
+#     if ($task -ne $null)
+#     {
+#         Write-Verbose "Successfully registered a scheduled job to auto mount WSL Blob NFS on startup."
+#     }
+#     else
+#     {
+#         Write-Error "Created scheduled task: FAILED."
+#         $global:LastExitCode = 1
+#         return
+#     }
+# }
+
 function Register-WSLBlobNFS-Startup
 {
     Write-Verbose "Initializing WSL environment for WSLBlobNFS usage on startup."
-    Import-Module PSScheduledJob -Force -Verbose:$false | Out-Null
+    # Import-Module PSScheduledJob -Force -Verbose:$false | Out-Null
 
     if($LastExitCode -ne 0)
     {
-        Write-Error "Importing PSScheduledJob module failed."
+        Write-Warning "Importing PSScheduledJob module failed."
 
         $global:LastExitCode = 1
         return
@@ -346,14 +387,14 @@ function Register-WSLBlobNFS-Startup
 
         if($LastExitCode -ne 0)
         {
-            Write-Error "Error while mounting Blob NFS share on startup."
+            Write-Warning "Error while mounting Blob NFS share on startup."
             return
         }
     } -Trigger (New-JobTrigger -AtStartup) -ScheduledJobOption (New-ScheduledJobOption -RunElevated)
 
     if($LastExitCode -ne 0 -or $null -eq $automnt)
     {
-        Write-Error "Unable to register a scheduled job to auto mount WSL Blob NFS on startup."
+        Write-Warning "Unable to register a scheduled job to auto mount WSL Blob NFS on startup."
         return
     }
 
@@ -589,14 +630,6 @@ function Initialize-WSLBlobNFS-Internal
             return
         }
         Write-Success "Installed NFS & Samba successfully!"
-    }
-
-    # Register a scheduled job to auto mount Blob NFS shares on startup.
-    Register-WSLBlobNFS-Startup
-
-    if($LastExitCode -ne 0)
-    {
-        return
     }
 
     if($initialized)
@@ -882,6 +915,15 @@ function Mount-WSLBlobNFS
 
     #  Print the mount mappings
     Get-SmbMapping -LocalPath "$MountDrive"
+
+    # Note: Avoid doing it in the Initialize-WSLBlobNFS step to avoid looping.
+    # Register a scheduled job to auto mount Blob NFS shares on startup.
+    Register-WSLBlobNFS-Startup
+
+    if($LastExitCode -ne 0)
+    {
+        Write-Warning "Unable to register a scheduled job to auto mount Blob NFS shares on startup."
+    }
 
     Write-Success "Mounting SMB share done. Now, you can access the share from $MountDrive."
 }

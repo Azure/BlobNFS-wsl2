@@ -9,11 +9,12 @@ This project is a collection of helper scripts to help you setup a Windows Subsy
 > This is work in progress. Please check back for updates.
 
 ## Prerequisites
-1. WSL is available only on 64 bit machines. Further, only use 64 bit version of the Powershell to use the module.  
+1. This module requires WSL2  
+1. WSL2 is available only on 64 bit machines. Further, only use 64 bit version of the Powershell to use the module.  
 
-2. WSL2 commands are supported only on Windows 10, version 2004 or higher, and Windows Server 2022, version 2009 or higher. Check [here](https://learn.microsoft.com/en-us/windows/wsl/install#prerequisites) for more details.  
+2. WSL2 features needed by this module are available only on Windows 10, version 2004 or higher, and Windows Server 2022, version 2009 or higher. Check [here](https://learn.microsoft.com/en-us/windows/wsl/install#prerequisites) for more details.  
 
-3. Since this module uses WSL to mount the Blob NFS share, Virtualization must be enabled on the machine.  
+3. WSL2 requires virtualization. Please select a machine that supports virtualization.  
 
     i. If you are installing this module on an Azure VM, then select a VM size that supports nested virtualization. You can check the list of VM SKU that supports nested virtualization. Check [here](https://docs.microsoft.com/en-us/azure/virtual-machines/acu).  
     For example, Dv5 SKU supports nested virtualization:
@@ -80,7 +81,6 @@ Install-WSLBlobNFS
 
 > **Note**  
 > If Ubuntu-22.04 is being installed for the first time, you will be prompted to create a new user account.  
-> Only after setting up the user account, proceed to Initialize-WSLBlobNFS step.
 
 
 ```powershell

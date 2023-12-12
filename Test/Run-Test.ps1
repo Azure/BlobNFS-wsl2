@@ -26,8 +26,9 @@ Write-Host "Copied the module to temp folder $tempFolder to test the module." -F
 Write-Host "You can use $tempFolder to for your other tests." -ForegroundColor Green
 
 # Refer to the manifest in the temp folder
-$ManifestPath = Join-Path $tempFolder ($ModulePath.Split("\")[-1]) ($ModulePath.Split("\")[-1] + ".psd1")
-$ScriptPath = Join-Path $tempFolder ($ModulePath.Split("\")[-1]) ($ModulePath.Split("\")[-1] + ".psm1")
+# PS 5 and below doesn't support multiple paths in Join-Path command. Hence, join the path twice.
+$ManifestPath = Join-Path $(Join-Path $tempFolder ($ModulePath.Split("\")[-1])) ($ModulePath.Split("\")[-1] + ".psd1")
+$ScriptPath = Join-Path $(Join-Path $tempFolder ($ModulePath.Split("\")[-1])) ($ModulePath.Split("\")[-1] + ".psm1")
 if(-not (Test-Path $ManifestPath) -or -not (Test-Path $ScriptPath))
 {
     Write-Error "Manifest or script of the module does not exist. Please check"
