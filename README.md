@@ -148,11 +148,17 @@ Import-Module -Name WSLBlobNFS -Force
         ```
 
         Commands to resolve the above issue:
-      ```powershell
-        Update-Module WSLBlobNFS
-        Import-Module WSLBlobNFS -Force
-        Initialize-WSLBlobNFS -Force
-      ```
+        ```powershell
+          Update-Module WSLBlobNFS
+          Import-Module WSLBlobNFS -Force
+          Initialize-WSLBlobNFS -Force
+        ```
+
+    - If auto mounting is not working on startup, run the following command to manually setup the pipeline again:  
+
+        ```powershell
+        Assert-PipelineWSLBlobNFS
+        ```
 
 ## Contributing
 
