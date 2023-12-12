@@ -367,40 +367,6 @@ function Install-WSL2
 #     }
 # }
 
-function Register-WSLBlobNFS-Startup
-{
-    Write-Verbose "Initializing WSL environment for WSLBlobNFS usage on startup."
-    # Import-Module PSScheduledJob -Force -Verbose:$false | Out-Null
-
-    if($LastExitCode -ne 0)
-    {
-        Write-Warning "Importing PSScheduledJob module failed."
-
-        $global:LastExitCode = 1
-        return
-    }
-
-    Unregister-ScheduledJob -Name "AutoMountWSLBlobNFS" -Force -ErrorAction SilentlyContinue
-    $automnt = Register-ScheduledJob -Name "AutoMountWSLBlobNFS" -ScriptBlock {
-        Import-Module WSLBlobNFS -Force
-        Assert-PipelineWSLBlobNFS
-
-        if($LastExitCode -ne 0)
-        {
-            Write-Warning "Error while mounting Blob NFS share on startup."
-            return
-        }
-    } -Trigger (New-JobTrigger -AtStartup) -ScheduledJobOption (New-ScheduledJobOption -RunElevated)
-
-    if($LastExitCode -ne 0 -or $null -eq $automnt)
-    {
-        Write-Warning "Unable to register a scheduled job to auto mount WSL Blob NFS on startup."
-        return
-    }
-
-    Write-Verbose "Successfully registered a scheduled job to auto mount WSL Blob NFS on startup."
-}
-
 function Install-WSLBlobNFS-Internal
 {
     [CmdletBinding()]
@@ -584,6 +550,10 @@ function Initialize-WSLBlobNFS-Internal
 
         # Note: Since we shutdown WSL, we need to run dbus-launch again, otherwise WSL will shutdown after 8 secs of inactivity.
         wsl -d $distroName --shutdown
+
+        Write-Verbose "Starting WSL $distroName."
+        Invoke-WSL "ls > /dev/null 2>&1"
+        Write-Verbose "Started WSL $distroName."
 
         # Check if systemd is properly installed or not.
         Invoke-WSL "systemctl list-unit-files --type=service | grep -q ^systemd-"
@@ -916,15 +886,6 @@ function Mount-WSLBlobNFS
     #  Print the mount mappings
     Get-SmbMapping -LocalPath "$MountDrive"
 
-    # Note: Avoid doing it in the Initialize-WSLBlobNFS step to avoid looping.
-    # Register a scheduled job to auto mount Blob NFS shares on startup.
-    Register-WSLBlobNFS-Startup
-
-    if($LastExitCode -ne 0)
-    {
-        Write-Warning "Unable to register a scheduled job to auto mount Blob NFS shares on startup."
-    }
-
     Write-Success "Mounting SMB share done. Now, you can access the share from $MountDrive."
 }
 
@@ -969,6 +930,47 @@ function Assert-PipelineWSLBlobNFS-Internal
             Write-Success "The $mountDrive is mounted in WSL $distroName via $smbexportname SMB share."
         }
     }
+}
+
+function Register-AutoMountWSLBlobNFS
+{
+    [CmdletBinding()]
+    param()
+
+    # Requires admin privileges.
+    if(-not ([bool](([System.Security.Principal.WindowsPrincipal] [System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole] "Administrator"))))
+    {
+        Write-Error "This command requires admin privileges. Run the command again with admin privileges."
+        $global:LastExitCode = 1
+        return
+    }
+
+    Write-Verbose "Initializing WSL environment for WSLBlobNFS usage on startup."
+    Import-Module PSScheduledJob -Force -Verbose:$false | Out-Null
+
+    # Remove the existing scheduled job if it exists.
+    Write-Verbose "Removing existing scheduled job to auto mount WSL Blob NFS on startup."
+    Unregister-ScheduledJob -Name "AutoMountWSLBlobNFS" -ErrorAction SilentlyContinue
+
+    Register-ScheduledJob -Name AutoMountWSLBlobNFS -ScriptBlock {
+                    Import-Module WSLBlobNFS -Force
+                    Assert-PipelineWSLBlobNFS
+
+                    if($LastExitCode -ne 0)
+                    {
+                        Write-Error 'Error while mounting Blob NFS share on startup.'
+                        return
+                    }
+                } -Trigger (New-JobTrigger -AtStartup) -ScheduledJobOption (New-ScheduledJobOption -ContinueIfGoingOnBattery -StartIfOnBattery)
+
+    $automnt = Get-ScheduledJob -Name AutoMountWSLBlobNFS -ErrorAction SilentlyContinue
+    if($null -eq $automnt)
+    {
+        Write-Error "Unable to register a scheduled job to auto mount WSL Blob NFS on startup. Try again with admin privileges."
+        return
+    }
+
+    Write-Success "Successfully registered a scheduled job to auto mount WSL Blob NFS on startup."
 }
 
 function Assert-PipelineWSLBlobNFS
@@ -1124,4 +1126,4 @@ function Dismount-WSLBlobNFS
 }
 
 # This list overrides the list provided in the module manifest (.psd1) file.
-Export-ModuleMember -Function Install-WSLBlobNFS, Initialize-WSLBlobNFS, Mount-WSLBlobNFS, Dismount-WSLBlobNFS, Assert-PipelineWSLBlobNFS
+Export-ModuleMember -Function Install-WSLBlobNFS, Initialize-WSLBlobNFS, Mount-WSLBlobNFS, Dismount-WSLBlobNFS, Assert-PipelineWSLBlobNFS, Register-AutoMountWSLBlobNFS

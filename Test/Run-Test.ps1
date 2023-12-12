@@ -72,6 +72,10 @@ Write-Host "------------------ Importing the module for your usage -------------
 Import-Module -Name $ManifestPath -Force
 Write-Host "------------------ Imported the module for your usage ------------------" -ForegroundColor Green
 
+# Get Scheduled job logs
+Write-Host "------------------ Getting Scheduled job logs ------------------"
+$jobop = "$env:UserProfile\AppData\Local\Microsoft\Windows\PowerShell\ScheduledJobs\AutoMountWSLBlobNFS\Output"
+
 # Installation Test scenarios:
 # WSL core installation
 # WSL update installation

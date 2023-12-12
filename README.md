@@ -48,8 +48,11 @@ This project is a collection of helper scripts to help you setup a Windows Subsy
 
 1. Install the module from PSGallery:  
 
+> **Note**  
+> Install only for the current user. Installing for all users with admin privileges will cause mounting issues.  
+
 ```powershell
-Install-Module -Name WSLBlobNFS
+Install-Module -Name WSLBlobNFS -Scope CurrentUser
 ```
     Check the above Prerequisite section if you face any errors while installing the module.  
 
@@ -97,6 +100,12 @@ Initialize-WSLBlobNFS
 ```powershell
 Mount-WSLBlobNFS -RemoteMount "<account-name>.blob.core.windows.net:/<account-name>/<container-name>"
 ```
+6. To auto mount the blob nfs storage containers on startup (Run as Admin as creating Scheduled Task requires admin privileges):  
+
+```powershell
+Register-AutoMountWSLBlobNFS
+```
+
 
 You can check the status of the mount by running the following command:  
 
@@ -116,10 +125,11 @@ To Uninstall the module:
 Uninstall-Module -Name WSLBlobNFS
 ```
 
-To Update the module:  
+To Update the module (Reimporting the module is required after updating):  
 
 ```powershell
 Update-Module -Name WSLBlobNFS
+Import-Module -Name WSLBlobNFS -Force
 ```
 
 ## Help
