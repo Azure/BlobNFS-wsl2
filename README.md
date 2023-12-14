@@ -1,9 +1,11 @@
 # Project
 
 ## Overview
+
 This project is a collection of PS commands to help you mount Azure Blob NFS storage containers via a Windows Subsystem for Linux (WSL). It provides commands to seemlessly install all the required components and mount and unmount your containers within Windows. With this setup, you can access your containers from Windows Explorer and any other Windows applications.  
 
 Here a list of components that is installed by this module:
+
 - WSL2,
 - Ubuntu distro,
 - Systemd,
@@ -16,6 +18,7 @@ Architectural diagram of the WSLBlobNFS setup:
 ![Architectural diagram of the WSLBlobNFS setup](/resources/architecture.png)  
 
 This PS module majorly has two components:
+
 - WSLBlobNFS.psm1 - Windows PS script as an interface between User and WSL.
 - wsl2_linux_script.sh - Linux script to setup the WSL environment, mount and unmount containers.  
 
@@ -23,12 +26,14 @@ This PS module majorly has two components:
 > This is work in progress. Please check back for updates.
 
 ## Prerequisites
+
 1. This module requires WSL2.  
+
 1. WSL2 is available only on 64 bit machines. Further, only use 64 bit version of the Powershell to use the module.  
 
-2. WSL2 features needed by this module are available only on Windows 10, version 2004 or higher, and Windows Server 2022, version 2009 or higher. Check [here](https://learn.microsoft.com/en-us/windows/wsl/install#prerequisites) for more details.  
+1. WSL2 features needed by this module are available only on Windows 10, version 2004 or higher, and Windows Server 2022, version 2009 or higher. Check [here](https://learn.microsoft.com/en-us/windows/wsl/install#prerequisites) for more details.  
 
-3. WSL2 requires virtualization. Please select a machine that supports virtualization.  
+1. WSL2 requires virtualization. Please select a machine that supports virtualization.  
 
     i. If you are installing this module on an Azure VM, then select a VM size that supports nested virtualization. You can check the list of VM SKU that supports nested virtualization [here](https://docs.microsoft.com/en-us/azure/virtual-machines/acu).  
     For example, Dv5 SKU supports nested virtualization:
@@ -36,7 +41,7 @@ This PS module majorly has two components:
 
     ii. If you are installing this module on any other  machine, then make sure that the virtualization is enabled in the BIOS. Check [here](https://learn.microsoft.com/en-us/windows/wsl/troubleshooting#error-0x80370102-the-virtual-machine-could-not-be-started-because-a-required-feature-is-not-installed) for more details.  
 
-4. Follow the steps here to create an Azure Blob NFS storage container: [Create an NFS 3.0 storage container](https://docs.microsoft.com/en-us/azure/storage/blobs/network-file-system-protocol-support-how-to?tabs=azure-portal#create-an-nfs-30-storage-container).
+1. Follow the steps here to create an Azure Blob NFS storage container: [Create an NFS 3.0 storage container](https://docs.microsoft.com/en-us/azure/storage/blobs/network-file-system-protocol-support-how-to?tabs=azure-portal#create-an-nfs-30-storage-container).
 
 <!-- To-do: Provide one click option to create vm and storage account with all the necessary setup to just launch and try the module. -->
 
@@ -77,7 +82,6 @@ Install-WSLBlobNFS
 > **Note**  
 > If Ubuntu-22.04 is being installed for the first time, you will be prompted to create a new user account.  
 
-
 ```powershell
 Initialize-WSLBlobNFS
 ```
@@ -85,18 +89,19 @@ Initialize-WSLBlobNFS
 5. Mount blob nfs storage container to WSL and map it via Samba on a drive that you can access from windows:  
 
 > **Note**  
+>
 > - The user who mounts the drive is the only one who can access the drive from Windows Explorer. If you are normal user and you mount using admin credentials, then you will not be able to access the drive from Windows Explorer.
 > - The module uses default mount options to mount the blob nfs storage container. If you want to use custom mount options, you can provide the complete mount command as a parameter to the Mount-WSLBlobNFS cmdlet. Check ```Get-Help -Full -Name Mount-WSLBlobNFS``` for more examples.
 
 ```powershell
 Mount-WSLBlobNFS -RemoteMount "<account-name>.blob.core.windows.net:/<account-name>/<container-name>"
 ```
+
 6. To auto mount the blob nfs storage containers on startup (Run as Admin as creating Scheduled Task requires admin privileges):  
 
 ```powershell
 Register-AutoMountWSLBlobNFS
 ```
-
 
 You can check the status of the mount by running the following command:  
 
@@ -128,8 +133,8 @@ Import-Module -Name WSLBlobNFS -Force
 > **Tip**  
 > Use -Verbose switch to get verbose output for the cmdlets.
 
-
 - Currently only Dv5 series VMs support nested virtualization with **Trusted Launch** enabled. If you are using a different VM SKU with **Trusted Launch** enabled, then you may see the following error while installing the module. :  
+
     > ```powershell
     > Ubuntu 22.04 LTS is already installed.
     > Launching Ubuntu 22.04 LTS...
@@ -139,6 +144,7 @@ Import-Module -Name WSLBlobNFS -Force
     > For information please visit https://aka.ms/enablevirtualization
     > Press any key to continue...
     > ```
+    >
     > Create a VM without **Trusted Launch** and try installing the module again.
     > Check if your VM has **Trusted Launch** enabled under the Security section of the VM blade in the Azure portal.
     ![Trusted Launch for Azure VMs](/resources/dmaonvms.png)
@@ -156,6 +162,7 @@ Import-Module -Name WSLBlobNFS -Force
     ```
 
     Commands to resolve the above issue:
+
     ```powershell
     Update-Module WSLBlobNFS
     Import-Module WSLBlobNFS -Force
