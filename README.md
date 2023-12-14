@@ -1,60 +1,52 @@
 # Project
 
 ## Overview
+This project is a collection of PS commands to help you mount Azure Blob NFS storage containers via a Windows Subsystem for Linux (WSL). It provides commands to seemlessly install all the required components and mount and unmount your containers within Windows. With this setup, you can access your containers from Windows Explorer and any other Windows applications.  
 
-This project is a collection of helper scripts to help you setup a Windows Subsystem for Linux (WSL) environment to mount Azure Blob NFS storage containers and export them to Windows via Samba. Samba is used to export the mounted blob nfs storage container to Windows since accessing the mounted blob nfs storage container directly from Windows is seen to give lower performance.
+Here a list of components that is installed by this module:
+- WSL2,
+- Ubuntu distro,
+- Systemd,
+- NFS, and
+- Samba.  
 
+Samba is used to export the WSL mounted container to Windows since accessing the mounted container directly from Windows using the native filesystem is seen to provide lower performance.
+
+Architectural diagram of the WSLBlobNFS setup:
+![Architectural diagram of the WSLBlobNFS setup](/resources/architecture.png)  
+
+This PS module majorly has two components:
+- WSLBlobNFS.psm1 - Windows PS script as an interface between User and WSL.
+- wsl2_linux_script.sh - Linux script to setup the WSL environment, mount and unmount containers.  
 
 > **Note**  
 > This is work in progress. Please check back for updates.
 
 ## Prerequisites
-1. This module requires WSL2  
+1. This module requires WSL2.  
 1. WSL2 is available only on 64 bit machines. Further, only use 64 bit version of the Powershell to use the module.  
 
 2. WSL2 features needed by this module are available only on Windows 10, version 2004 or higher, and Windows Server 2022, version 2009 or higher. Check [here](https://learn.microsoft.com/en-us/windows/wsl/install#prerequisites) for more details.  
 
 3. WSL2 requires virtualization. Please select a machine that supports virtualization.  
 
-    i. If you are installing this module on an Azure VM, then select a VM size that supports nested virtualization. You can check the list of VM SKU that supports nested virtualization. Check [here](https://docs.microsoft.com/en-us/azure/virtual-machines/acu).  
+    i. If you are installing this module on an Azure VM, then select a VM size that supports nested virtualization. You can check the list of VM SKU that supports nested virtualization [here](https://docs.microsoft.com/en-us/azure/virtual-machines/acu).  
     For example, Dv5 SKU supports nested virtualization:
     ![Nested Virtualization support on Azure VMs](/resources/nested-virt.png)
 
-    > **Warning**  
-    > Currently only Dv5 series VMs support nested virtualization with **Trusted Launch** enabled. If you are using a different VM SKU with **Trusted Launch** enabled, then you may see the following error while installing the module. :  
-    > ```powershell
-    > Ubuntu 22.04 LTS is already installed.
-    > Launching Ubuntu 22.04 LTS...
-    > Installing, this may take a few minutes...
-    > WslRegisterDistribution failed with error: 0x80370102
-    > Please enable the Virtual Machine Platform Windows feature and ensure virtualization is enabled in the BIOS.
-    > For information please visit https://aka.ms/enablevirtualization
-    > Press any key to continue...
-    > ```
-    > Create a VM without **Trusted Launch** and try installing the module again.
-    > Check if your VM has **Trusted Launch** enabled under the Security section of the VM blade in the Azure portal.
-    ![Trusted Launch for Azure VMs](/resources/dmaonvms.png)
-    > Check [here](https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch#unsupported-features) for more details on **Trusted Launch**.  
-
-    ii. If you are installing this module on a your own machine, then make sure that the machine virtualization is enabled in the BIOS. Check [here](https://learn.microsoft.com/en-us/windows/wsl/troubleshooting#error-0x80370102-the-virtual-machine-could-not-be-started-because-a-required-feature-is-not-installed) for more details.  
-
-    iii. For any other installation issues, check issues on [WSL troubleshooting guide](https://learn.microsoft.com/en-us/windows/wsl/troubleshooting) or [WSL GitHub repo](https://github.com/Microsoft/wsl/issues).  
+    ii. If you are installing this module on any other  machine, then make sure that the virtualization is enabled in the BIOS. Check [here](https://learn.microsoft.com/en-us/windows/wsl/troubleshooting#error-0x80370102-the-virtual-machine-could-not-be-started-because-a-required-feature-is-not-installed) for more details.  
 
 4. Follow the steps here to create an Azure Blob NFS storage container: [Create an NFS 3.0 storage container](https://docs.microsoft.com/en-us/azure/storage/blobs/network-file-system-protocol-support-how-to?tabs=azure-portal#create-an-nfs-30-storage-container).
 
-
+<!-- To-do: Provide one click option to create vm and storage account with all the necessary setup to just launch and try the module. -->
 
 ## Usage
 
 1. Install the module from PSGallery:  
 
-> **Note**  
-> Install only for the current user. Installing for all users with admin privileges will cause mounting issues.  
-
 ```powershell
 Install-Module -Name WSLBlobNFS -Scope CurrentUser
 ```
-    Check the above Prerequisite section if you face any errors while installing the module.  
 
 2. Import the module:  
 
@@ -93,9 +85,8 @@ Initialize-WSLBlobNFS
 5. Mount blob nfs storage container to WSL and map it via Samba on a drive that you can access from windows:  
 
 > **Note**  
-> - The module uses default mount options to mount the blob nfs storage container. If you want to use custom mount options, you can provide the complete mount command as a parameter to the Mount-WSLBlobNFS cmdlet.
-> - MountDrive parameter is optional. If not provided, the drive will be automatically assigned.
-> - Check ```Get-Help -Full -Name Mount-WSLBlobNFS``` for more examples.
+> - The user who mounts the drive is the only one who can access the drive from Windows Explorer. If you are normal user and you mount using admin credentials, then you will not be able to access the drive from Windows Explorer.
+> - The module uses default mount options to mount the blob nfs storage container. If you want to use custom mount options, you can provide the complete mount command as a parameter to the Mount-WSLBlobNFS cmdlet. Check ```Get-Help -Full -Name Mount-WSLBlobNFS``` for more examples.
 
 ```powershell
 Mount-WSLBlobNFS -RemoteMount "<account-name>.blob.core.windows.net:/<account-name>/<container-name>"
@@ -134,31 +125,48 @@ Import-Module -Name WSLBlobNFS -Force
 
 ## Help
 
-1. Use -Verbose switch to get verbose output for the cmdlets.
+> **Tip**  
+> Use -Verbose switch to get verbose output for the cmdlets.
 
-2. Common issues and their solutions:  
 
-    - If you get the following error while running the Mount-WSLBlobNFS cmdlet, do the following and try mount again: 
+- Currently only Dv5 series VMs support nested virtualization with **Trusted Launch** enabled. If you are using a different VM SKU with **Trusted Launch** enabled, then you may see the following error while installing the module. :  
+    > ```powershell
+    > Ubuntu 22.04 LTS is already installed.
+    > Launching Ubuntu 22.04 LTS...
+    > Installing, this may take a few minutes...
+    > WslRegisterDistribution failed with error: 0x80370102
+    > Please enable the Virtual Machine Platform Windows feature and ensure virtualization is enabled in the BIOS.
+    > For information please visit https://aka.ms/enablevirtualization
+    > Press any key to continue...
+    > ```
+    > Create a VM without **Trusted Launch** and try installing the module again.
+    > Check if your VM has **Trusted Launch** enabled under the Security section of the VM blade in the Azure portal.
+    ![Trusted Launch for Azure VMs](/resources/dmaonvms.png)
+    > Check [here](https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch#unsupported-features) for more details on **Trusted Launch**.  
 
-        ```powershell
-        Mounting SMB share \\<wsl-ip>\<samba-share-name> onto drive Z:
-        System error 1272 has occurred.
+- For any other WSL2 installation issues, check issues on [WSL troubleshooting guide](https://learn.microsoft.com/en-us/windows/wsl/troubleshooting) or [WSL GitHub repo](https://github.com/Microsoft/wsl/issues).  
 
-        You can't access this shared folder because your organization's security policies block unauthenticated guest access. These policies help protect your PC from unsafe or malicious devices on the network.
-        ```
+- If you get the following error while running the Mount-WSLBlobNFS cmdlet, do the below steps and try mount again:  
 
-        Commands to resolve the above issue:
-        ```powershell
-          Update-Module WSLBlobNFS
-          Import-Module WSLBlobNFS -Force
-          Initialize-WSLBlobNFS -Force
-        ```
+    ```powershell
+    Mounting SMB share \\<wsl-ip>\<samba-share-name> onto drive Z:
+    System error 1272 has occurred.
 
-    - If auto mounting is not working on startup, run the following command to manually setup the pipeline again:  
+    You can't access this shared folder because your organization's security policies block unauthenticated guest access. These policies help protect your PC from unsafe or malicious devices on the network.
+    ```
 
-        ```powershell
-        Assert-PipelineWSLBlobNFS
-        ```
+    Commands to resolve the above issue:
+    ```powershell
+    Update-Module WSLBlobNFS
+    Import-Module WSLBlobNFS -Force
+    Initialize-WSLBlobNFS -Force
+    ```
+
+- If auto mounting is not working on startup, run the following command to manually setup the pipeline again:  
+
+    ```powershell
+    Assert-PipelineWSLBlobNFS
+    ```
 
 ## Contributing
 

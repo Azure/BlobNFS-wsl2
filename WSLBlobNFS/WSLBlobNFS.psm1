@@ -32,7 +32,6 @@
 #   https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_output_streams?view=powershell-5.1
 # - Add Uninitialize module support
 # - Add retry logic for each of the commands
-# - Check if the user has permission to run the commands and throw error if the user doesn't have permission.
 
 # Throw an error if any cmdlet, function, or command fails or a variable is unknown and stop the script execution.
 Set-PSDebug -Strict
@@ -162,6 +161,7 @@ function Install-WSL2
         return
     }
 
+    # Avoid collecting computer info path if everything is already installed and return from here.
     Write-Verbose "Checking WSL installation status."
 
     # Check if WSL is installed or not.
@@ -176,7 +176,6 @@ function Install-WSL2
     Write-Verbose "WSL Version op: $wslVersionOp"
     Write-Verbose "WSL Version status code: $wslstatus1"
 
-    # Avoid collecting computer info path if everything is already installed and return from here.
     # WSL2 and a distro is already present.
     if(($wslstatus -eq 0) -and ($wslstatus1 -eq 0))
     {
@@ -204,20 +203,14 @@ function Install-WSL2
     $windowsVersion = $compInfo.WindowsVersion
     Write-Verbose "Windows version: $windowsVersion"
 
-    $osBuildNumber = $compInfo.osBuildNumber
-    Write-Verbose "Windows build number: $osBuildNumber"
-
     $winEdition = $compInfo.OsName
     Write-Verbose "Windows edition: $winEdition"
 
-    $deviceProtectionStatus = $compInfo.DeviceGuardAvailableSecurityProperties
-    Write-Verbose "Device protection status: $deviceProtectionStatus"
-
+    # Check the os version number.
     # WSL2 commands are supported only on Windows Home or Enterprise edition on version than 2004.
     # and on Windows Server 2022 on version higher than 2009.
     # https://learn.microsoft.com/en-us/windows/wsl/install#prerequisites
-    # Check the os build number.
-    $isWSLsuppported = (($winEdition -match "Enterprise" -or $winEdition -match "Home") -and $windowsVersion -ge 2004) -or ($winEdition -match "Server" -and $osBuildNumber -ge 2009)
+    $isWSLsuppported = (($winEdition -match "Enterprise" -or $winEdition -match "Home") -and $windowsVersion -ge 2004) -or ($winEdition -match "Server" -and $windowsVersion -ge 2009)
     if($isWSLsuppported -eq $false)
     {
         Write-Error "WSL2 commands are not supported on this version of Windows. Please check the prerequisites section of the module for more details."
@@ -225,18 +218,30 @@ function Install-WSL2
         return
     }
 
-    # Check if the device protection is enabled or not.
-    $dmaStatus = $false
-    $deviceProtectionStatus.ForEach({
-        if($_ -eq "DMAProtection")
-        {
-            $dmaStatus = $true
-        }
-    })
+    # Only certain Azure VMs support nested virtualization required for WSL2.
+    # Query Azure Instance Metadata Service to check if the VM is an Azure VM or not.
+    # https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service
+    $azureVmInfo = $(Invoke-RestMethod -Headers @{"Metadata"="true"} -Method GET -Proxy $Null -Uri "http://169.254.169.254/metadata/instance?api-version=2021-01-01" -TimeoutSec 3) 2>&1
 
-    if(($winEdition -match "Azure") -and ($dmaStatus -eq $true))
+    if($azureVmInfo -match "timed out")
     {
-        Write-Warning "Note: Currently only Dv5 Azure VMs with Trusted Launch supported nested virtualization. Make sure that the VM is Dv5 or that Trusted Launch is disabled. Check the prerequisites section of the module for more details."
+        Write-Verbose "This is not an Azure VM. Skipping device protection check."
+    }
+    else
+    {
+        Write-Verbose "This is an Azure VM. Checking device protection status."
+
+        $vmSecurityProfile = $azureVmInfo.compute.securityProfile.secureBootEnabled -or $azureVmInfo.compute.securityProfile.virtualTpmEnabled
+        Write-Verbose "Device protection status: $vmSecurityProfile"
+
+        $vmSize = $azureVmInfo.compute.vmSize
+
+        if(($vmSize -match "v[1-4]$") -and ($vmSecurityProfile -eq $true))
+        {
+            Write-Error "Currently only v5 and above Azure VMs with Trusted Launch support nested virtualization needed for WSL2."
+            $global:LastExitCode = 1
+            return
+        }
     }
 
     # WSL version and distro check.
@@ -324,48 +329,6 @@ function Install-WSL2
     $global:LastExitCode = 0
     return
 }
-
-# function Register-WSLBlobNFS-Startup
-# {
-#     Write-Verbose "Initializing WSL environment for WSLBlobNFS usage on startup."
-
-#     if($LastExitCode -ne 0)
-#     {
-#         Write-Error "Importing PSScheduledJob module failed."
-#         $global:LastExitCode = 1
-#         return
-#     }
-
-#     $taskName = "AutoMountWSLBlobNFS"
-#     $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-#     if ($task -ne $null)
-#     {
-#         Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
-#     }
-
-#     $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument 'Import-Module WSLBlobNFS -Force; Assert-PipelineWSLBlobNFS"'
-#     $trigger = New-ScheduledTaskTrigger -AtStartup -RandomDelay 00:00:30
-#     $settings = New-ScheduledTaskSettingsSet
-
-#     $principal = New-ScheduledTaskPrincipal -UserId SYSTEM -LogonType ServiceAccount -RunLevel Highest
-
-#     $definition = New-ScheduledTask -Action $action -Principal $principal -Trigger $trigger -Settings $settings -Description "Run $($taskName) at startup"
-
-#     Register-ScheduledTask -TaskName $taskName -InputObject $definition
-
-#     $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-
-#     if ($task -ne $null)
-#     {
-#         Write-Verbose "Successfully registered a scheduled job to auto mount WSL Blob NFS on startup."
-#     }
-#     else
-#     {
-#         Write-Error "Created scheduled task: FAILED."
-#         $global:LastExitCode = 1
-#         return
-#     }
-# }
 
 function Install-WSLBlobNFS-Internal
 {
@@ -639,6 +602,49 @@ function Dismount-MountInsideWSL
     Write-Success "Unmounting $ShareName done."
 }
 
+function Assert-PipelineWSLBlobNFS-Internal
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][CimInstance]$smbmapping
+    )
+
+    $mountDrive = $smbmapping.LocalPath
+    # Sample remote path: \\172.17.47.111\mntnfsv3share
+    $remotePathTokens = $smbmapping.RemotePath.Split("\")
+    $smbexportname = $remotePathTokens[-1].Trim(" ")
+    $smbremotehost = $remotePathTokens[2].Trim(" ")
+
+    # Remote host should be the current WSL's ip address
+    $ipaddress = Invoke-WSL "hostname -I"
+    $ipaddress = $ipaddress.Trim()
+    if($smbremotehost -ne $ipaddress)
+    {
+        Write-Warning "The $mountDrive is not mounted from the current WSL $distroName."
+    }
+    else
+    {
+        Invoke-WSL "'$modulePathForLinux/$wslScriptName' checkmount '$smbexportname'"
+
+        if($LastExitCode -ne 0)
+        {
+            Write-Error "Unable to mount $mountDrive in WSL $distroName."
+        }
+        else
+        {
+            # Remove the SMB mapping and add again to avoid having to authenticate again in the explorer.
+            net use $mountDrive /delete /yes | Out-Null
+            if($LastExitCode -ne 0)
+            {
+                Write-Error "Unable to mount $mountDrive in Windows."
+                return
+            }
+            net use $mountDrive "\\$ipaddress\$smbexportname" /persistent:yes /user:$smbUserName $smbUserName | Out-Null
+            Write-Success "The $mountDrive is mounted in WSL $distroName via $smbexportname SMB share."
+        }
+    }
+}
+
 #
 # Public functions
 #
@@ -755,10 +761,12 @@ function Mount-WSLBlobNFS
     .EXAMPLE
         PS> Mount-WSLBlobNFS -RemoteMount "account.blob.core.windows.net:account/container"
         You can just provide the NFSv3 share address as below.
+        Note: MountDrive parameter is optional. If not provided, the drive will be automatically assigned.
 
     .EXAMPLE
         PS> Mount-WSLBlobNFS -RemoteMount "mount -t nfs -o vers=3,proto=tcp account.blob.preprod.core.windows.net:/account/container /mnt/nfsv3share"
         You can also provide the NFS mount command if you want to provide extra mount parameters.
+        Note: MountDrive parameter is optional. If not provided, the drive will be automatically assigned.
 
     .LINK
         https://github.com/Azure/BlobNFS-wsl2
@@ -887,49 +895,6 @@ function Mount-WSLBlobNFS
     Get-SmbMapping -LocalPath "$MountDrive"
 
     Write-Success "Mounting SMB share done. Now, you can access the share from $MountDrive."
-}
-
-function Assert-PipelineWSLBlobNFS-Internal
-{
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)][CimInstance]$smbmapping
-    )
-
-    $mountDrive = $smbmapping.LocalPath
-    # Sample remote path: \\172.17.47.111\mntnfsv3share
-    $remotePathTokens = $smbmapping.RemotePath.Split("\")
-    $smbexportname = $remotePathTokens[-1].Trim(" ")
-    $smbremotehost = $remotePathTokens[2].Trim(" ")
-
-    # Remote host should be the current WSL's ip address
-    $ipaddress = Invoke-WSL "hostname -I"
-    $ipaddress = $ipaddress.Trim()
-    if($smbremotehost -ne $ipaddress)
-    {
-        Write-Warning "The $mountDrive is not mounted from the current WSL $distroName."
-    }
-    else
-    {
-        Invoke-WSL "'$modulePathForLinux/$wslScriptName' checkmount '$smbexportname'"
-
-        if($LastExitCode -ne 0)
-        {
-            Write-Error "Unable to mount $mountDrive in WSL $distroName."
-        }
-        else
-        {
-            # Remove the SMB mapping and add again to avoid having to authenticate again in the explorer.
-            net use $mountDrive /delete /yes | Out-Null
-            if($LastExitCode -ne 0)
-            {
-                Write-Error "Unable to mount $mountDrive in Windows."
-                return
-            }
-            net use $mountDrive "\\$ipaddress\$smbexportname" /persistent:yes /user:$smbUserName $smbUserName | Out-Null
-            Write-Success "The $mountDrive is mounted in WSL $distroName via $smbexportname SMB share."
-        }
-    }
 }
 
 function Register-AutoMountWSLBlobNFS
