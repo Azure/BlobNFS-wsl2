@@ -899,6 +899,24 @@ function Mount-WSLBlobNFS
 
 function Register-AutoMountWSLBlobNFS
 {
+    <#
+    .SYNOPSIS
+        Resiter a scheduled job to auto mount WSL Blob NFS on startup.
+
+    .DESCRIPTION
+        This command requires admin privileges to register a scheduled job to auto mount WSL Blob NFS on startup.
+
+    .EXAMPLE
+        PS> Register-AutoMountWSLBlobNFS
+
+    .LINK
+        https://github.com/Azure/BlobNFS-wsl2
+
+    .NOTES
+        Author:  Azure Blob NFS
+        Website: https://github.com/Azure/BlobNFS-wsl2
+    #>
+
     [CmdletBinding()]
     param()
 
