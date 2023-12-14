@@ -238,7 +238,7 @@ function Install-WSL2
 
         if(($vmSize -match "v[1-4]$") -and ($vmSecurityProfile -eq $true))
         {
-            Write-Error "Currently only v5 and above Azure VMs with Trusted Launch support nested virtualization needed for WSL2."
+            Write-Error "Sorry, this module will not work on this VM. :( `nCurrently only v5 and above Azure VMs with Trusted Launch support nested virtualization needed for WSL2."
             $global:LastExitCode = 1
             return
         }
