@@ -158,6 +158,15 @@ function Install-WSL2
         return
     }
 
+    # PSEdition check. Only Desktop edition is supported.
+    Write-Verbose "Checking if Powershell is Desktop edition or not."
+    if($PSEdition -ne "Desktop")
+    {
+        Write-Error "This module installation is not supported on Powershell Core. Please use Powershell Desktop edition."
+        $global:LastExitCode = 1
+        return
+    }
+
     # Avoid collecting computer info path if everything is already installed and return from here.
     Write-Verbose "Checking WSL installation status."
 

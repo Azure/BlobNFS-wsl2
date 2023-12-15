@@ -20,10 +20,10 @@ RootModule = 'WSLBlobNFS.psm1'
 # To-do:
 # 1. Proper versioning of the script.
 # 2. Automate the versioning and release process.
-ModuleVersion = '1.0.24'
+ModuleVersion = '1.0.25'
 
 # Supported PSEditions
-CompatiblePSEditions = @('Desktop')
+# CompatiblePSEditions = @()
 
 # ID used to uniquely identify this module
 GUID = '7cb818d5-f678-481f-8d92-159c349760de'
