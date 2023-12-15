@@ -151,12 +151,12 @@ function Install-WSL2
     param()
 
     # WSL is supported only on 64 bit PS.
-    Write-Verbose "Checking if PS is 32 bit or 64 bit."
+    Write-Verbose "Checking if Powershell is 32 bit or 64 bit."
     $is64bit = [Environment]::Is64BitProcess
 
     if($is64bit -eq $false)
     {
-        Write-Error "WSL2 installation is not supported on 32 bit PS. Please use 64 bit PS."
+        Write-Error "WSL2 installation is not supported on 32 bit PS. Please use 64 bit Powershell."
         $global:LastExitCode = 1
         return
     }
@@ -167,14 +167,14 @@ function Install-WSL2
     # Check if WSL is installed or not.
     $wslDistros = wsl -l -v 2>&1
     $wslstatus = $LastExitCode
-    Write-Verbose "WSL Distros op: $wslDistros"
-    Write-Verbose "WSL Distros status code: $wslstatus"
+    Write-Verbose "WSL Distros: `n$wslDistros"
+    Write-Verbose "WSL Distros status code: `n$wslstatus"
 
     # Check the WSL version
     $wslVersionOp = wsl -v 2>&1
     $wslstatus1 = $LastExitCode
-    Write-Verbose "WSL Version op: $wslVersionOp"
-    Write-Verbose "WSL Version status code: $wslstatus1"
+    Write-Verbose "WSL Version: `n$wslVersionOp"
+    Write-Verbose "WSL Version status code: `n$wslstatus1"
 
     # WSL2 and a distro is already present.
     if(($wslstatus -eq 0) -and ($wslstatus1 -eq 0))
@@ -185,16 +185,19 @@ function Install-WSL2
         if($LastExitCode -ne 0)
         {
             # Since WSL2 is already installed, we can continue the script execution. Hence, the exit code is 0.
-            Write-Warning "WSL2 update failed: $wslupdate"
+            Write-Warning "WSL2 update failed: $wslupdate."
+            Write-Warning "Continuing with the currently installed WSL2 version."
         }
         else
         {
-            Write-Verbose "WSL2 is already installed and updated!"
+            Write-Verbose "WSL2 is is upto date!"
         }
 
         $global:LastExitCode = 0
         return
     }
+
+    Write-Output "WSL2 is not installed. Trying to install WSL2..."
 
     # Check if the device support virtualization or not.
     Write-Verbose "Checking if the device supports virtualization."
@@ -211,9 +214,10 @@ function Install-WSL2
     # and on Windows Server 2022 on version higher than 2009.
     # https://learn.microsoft.com/en-us/windows/wsl/install#prerequisites
     $isWSLsuppported = (($winEdition -match "Enterprise" -or $winEdition -match "Home") -and $windowsVersion -ge 2004) -or ($winEdition -match "Server" -and $windowsVersion -ge 2009)
+
     if($isWSLsuppported -eq $false)
     {
-        Write-Error "WSL2 commands are not supported on this version of Windows. Please check the prerequisites section of the module for more details."
+        Write-Error "Your Windows version - $winEdition ($windowsVersion) - does not support WSL2. Please upgrade to Windows 10 version 2004 or higher or Windows Server 2022 version 2009 or higher."
         $global:LastExitCode = 1
         return
     }
@@ -225,16 +229,17 @@ function Install-WSL2
 
     if($azureVmInfo -match "timed out")
     {
-        Write-Verbose "This is not an Azure VM. Skipping device protection check."
+        Write-Verbose "This is not an Azure VM. Skipping virtualization check."
     }
     else
     {
-        Write-Verbose "This is an Azure VM. Checking device protection status."
+        Write-Verbose "This is an Azure VM. Checking virtualization status."
 
         $vmSecurityProfile = $azureVmInfo.compute.securityProfile.secureBootEnabled -or $azureVmInfo.compute.securityProfile.virtualTpmEnabled
         Write-Verbose "Device protection status: $vmSecurityProfile"
 
         $vmSize = $azureVmInfo.compute.vmSize
+        Write-Verbose "Azure VM SKU: $vmSize"
 
         if(($vmSize -match "v[1-4]$") -and ($vmSecurityProfile -eq $true))
         {
@@ -244,9 +249,13 @@ function Install-WSL2
         }
     }
 
-    # WSL version and distro check.
+    # WSL version check.
+    $wslNotInstalled = ($wslstatus1 -eq 1)
+    $wsl1Installed = ($wslstatus1 -eq -1)
+    $wsl2Installed = ($wslstatus1 -eq 0)
+
     # No presence of WSL
-    if(($wslstatus -eq 1) -and ($wslstatus1 -eq 1))
+    if($wslNotInstalled)
     {
         Write-Output "WSL2 is not installed. Installing WSL2..."
 
@@ -272,13 +281,10 @@ function Install-WSL2
         return
     }
 
-    # To-do: Check the error codes when wsl1 is installed.
     # When WSL1 is present.
-    # wslstatus is immaterial here, since wsl1 is already installed.
-    # On windows server, you may get wslstatus as -1 while on windows enterprise, you may get wslstatus as 0.
-    elseif((($wslstatus -eq -1) -or ($wslstatus -eq 0)) -and $wslstatus1 -eq -1)
+    elseif($wsl1Installed)
     {
-        Write-Output "Updating WSL to WSL2."
+        Write-Output "WSL1 is installed. Updating WSL1 to WSL2..."
         wsl --update
         if($LastExitCode -ne 0)
         {
@@ -303,8 +309,8 @@ function Install-WSL2
         Write-Success "Successfully updated WSL to WSL2!"
     }
 
-    # WSL2 installed but the distro is not installed.
-    elseif(($wslstatus -eq -1) -and ($wslstatus1 -eq 0))
+    # WSL2 installed.
+    elseif($wsl2Installed)
     {
         Write-Verbose "WSL2 is already installed. Checking for updates."
         $wslupdate = wsl --update 2>&1
@@ -323,7 +329,8 @@ function Install-WSL2
     # Print a warning message and proceed. The other part of the script will the distro installation and version support.
     else
     {
-        Write-Warning "WSL2 installation status is unknown. `n WSL Distros op: $wslDistros `n WSL Distros status code: $wslstatus `n WSL Version op: $wslVersionOp `n WSL Version status code: $wslstatus1"
+        Write-Warning "WSL2 installation status is unknown. `nWSL Version: $wslVersionOp `nWSL Version status code: $wslstatus1"
+        Write-Warning "Continuing with the currently installed WSL version."
     }
 
     $global:LastExitCode = 0
@@ -341,35 +348,6 @@ function Install-WSLBlobNFS-Internal
         return
     }
 
-    # Remove the null character from the output and extract the version number.
-    $wslVersionOp = wsl -v
-
-    if($LastExitCode -ne 0)
-    {
-        Write-Error "WSL2 version check failed."
-        $global:LastExitCode = 1
-        return
-    }
-
-    $wslVersionOp = $wslVersionOp -replace '\0', ''
-    $wslVersionOp = $wslVersionOp -match 'WSL Version:'
-    if([string]::IsNullOrWhiteSpace($wslVersionOp))
-    {
-        Write-Error "WSL version check failed."
-        $global:LastExitCode = 1
-        return
-    }
-
-    [Version]$wslVersion = $wslVersionOp.Split(":")[1].Trim()
-
-    # Systemd is available after certain WSL version. Hence, this check.
-    if($wslversion -lt $minSupportedVersion)
-    {
-        Write-Error "Existing WSL version $wslversion is not supported for Blob NFS usage. Please upgrade to WSL2 using 'wsl --update' and set the default version to WSL2 using 'wsl --set-default-version 2'"
-        $global:LastExitCode = 1
-        return
-    }
-
     # Check if the distro is installed or not.
     # If WSL2 installed but the distro is not installed, then wsl -l -v will return -1.
     $wslDistros = wsl -l -v
@@ -384,7 +362,7 @@ function Install-WSLBlobNFS-Internal
     $wslDistros = $wslDistros -replace '\0', ''
     $distroStatus = $wslDistros -match $distroName
 
-    if([string]::IsNullOrWhiteSpace($distroStatus))
+    if($distroStatus)
     {
         $wslListOnline = wsl -l -o 2>&1
 
@@ -428,7 +406,7 @@ function Install-WSLBlobNFS-Internal
             return
         }
 
-        Write-Success "WSL distro $distroName is installed."
+        Write-Success "Installed WSL distro $distroName."
 
         # Since the distro can now be used, we can continue the script execution. Hence, the exit code is 0.
         $global:LastExitCode = 0
@@ -632,14 +610,39 @@ function Assert-PipelineWSLBlobNFS-Internal
         }
         else
         {
+            Write-Output "Removing $mountDrive from Windows."
             # Remove the SMB mapping and add again to avoid having to authenticate again in the explorer.
             net use $mountDrive /delete /yes | Out-Null
+
             if($LastExitCode -ne 0)
             {
                 Write-Error "Unable to mount $mountDrive in Windows."
                 return
             }
+
+            if(Get-SmbMapping -LocalPath $mountDrive -ErrorAction SilentlyContinue)
+            {
+                Write-Error "Unable to unmount $mountDrive in Windows."
+                return
+            }
+
+            Write-Output "Mounting $mountDrive in Windows."
             net use $mountDrive "\\$ipaddress\$smbexportname" /persistent:yes /user:$smbUserName $smbUserName | Out-Null
+
+            if($LastExitCode -ne 0)
+            {
+                Write-Error "Unable to mount $mountDrive in Windows."
+                return
+            }
+
+            if(-not (Get-SmbMapping -LocalPath $mountDrive -ErrorAction SilentlyContinue))
+            {
+                Write-Error "Unable to mount $mountDrive in Windows."
+                return
+            }
+
+            Get-SmbMapping -LocalPath $mountDrive
+
             Write-Success "The $mountDrive is mounted in WSL $distroName via $smbexportname SMB share."
         }
     }
@@ -937,7 +940,7 @@ function Register-AutoMountWSLBlobNFS
 
     Register-ScheduledJob -Name AutoMountWSLBlobNFS -ScriptBlock {
                     Import-Module WSLBlobNFS -Force
-                    Assert-PipelineWSLBlobNFS
+                    Assert-PipelineWSLBlobNFS -Verbose
 
                     if($LastExitCode -ne 0)
                     {
