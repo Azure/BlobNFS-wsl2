@@ -23,7 +23,7 @@ RootModule = 'WSLBlobNFS.psm1'
 ModuleVersion = '1.0.24'
 
 # Supported PSEditions
-# CompatiblePSEditions = @()
+CompatiblePSEditions = @('Desktop')
 
 # ID used to uniquely identify this module
 GUID = '7cb818d5-f678-481f-8d92-159c349760de'
@@ -106,7 +106,7 @@ PrivateData = @{
     PSData = @{
 
         # Tags applied to this module. These help with module discovery in online galleries.
-        Tags = @('windows', 'azure', 'storage', 'wsl2', 'automation', 'cloud', 'automation')
+        Tags = @('windows', 'azure', 'storage', 'wsl2', 'automation', 'cloud', 'automation', 'nfsv3')
 
         # A URL to the license for this module.
         LicenseUri = 'https://mit-license.org/'
@@ -134,7 +134,7 @@ PrivateData = @{
 } # End of PrivateData hashtable
 
 # HelpInfo URI of this module
-# HelpInfoURI = 'https://github.com/Azure/BlobNFS-wsl2'
+HelpInfoURI = 'https://github.com/Azure/BlobNFS-wsl2'
 
 # Default prefix for commands exported from this module. Override the default prefix using Import-Module -Prefix.
 # DefaultCommandPrefix = ''

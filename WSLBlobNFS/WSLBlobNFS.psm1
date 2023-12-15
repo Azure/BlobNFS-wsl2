@@ -38,9 +38,6 @@ Set-PSDebug -Strict
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Min supported WSL version
-$minSupportedVersion = [Version]"2.0.0"
-
 # WSL distro name and user name
 $distroName = "Ubuntu-22.04"
 
