@@ -56,7 +56,6 @@ Install-Module -Name WSLBlobNFS -Scope CurrentUser
 > **Note**  
 > The mounted drive will be visible only to the user who mounts it, so please make sure that you are running the cmdlets as the same user.
 
-
 2. Import the module:  
 
 ```powershell
@@ -93,16 +92,16 @@ Initialize-WSLBlobNFS
 5. Mount blob nfs storage container to WSL and map it via Samba on a drive that you can access from windows:  
 
 > **Note**  
-> - The module uses default mount options to mount the blob nfs storage container. If you want to use custom mount options, you can provide the complete mount command as a parameter to the Mount-WSLBlobNFS cmdlet. Check ```Get-Help -Full -Name Mount-WSLBlobNFS``` for more examples.
+> The module uses default mount options to mount the blob nfs storage container. If you want to use custom mount options, you can provide the complete mount command as a parameter to the Mount-WSLBlobNFS cmdlet. Check ```Get-Help -Full -Name Mount-WSLBlobNFS``` for more examples.
 
 ```powershell
 Mount-WSLBlobNFS -RemoteMount "<account-name>.blob.core.windows.net:/<account-name>/<container-name>"
 ```
 
-6. To auto mount the blob nfs storage containers on startup (Run as Admin as creating Scheduled Task requires admin privileges):  
+6. To remount all the previously mapped SMB shares after a Windows restart:  
 
 ```powershell
-Register-AutoMountWSLBlobNFS
+Asert-PipelineWSLBlobNFS
 ```
 
 You can check the status of the mount by running the following command:  
@@ -169,12 +168,6 @@ Import-Module -Name WSLBlobNFS -Force
     Update-Module WSLBlobNFS
     Import-Module WSLBlobNFS -Force
     Initialize-WSLBlobNFS -Force
-    ```
-
-- If auto mounting is not working on startup, run the following command to manually setup the pipeline again:  
-
-    ```powershell
-    Assert-PipelineWSLBlobNFS
     ```
 
 ## Contributing
