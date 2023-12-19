@@ -20,7 +20,7 @@ RootModule = 'WSLBlobNFS.psm1'
 # To-do:
 # 1. Proper versioning of the script.
 # 2. Automate the versioning and release process.
-ModuleVersion = '1.0.25'
+ModuleVersion = '1.0.26'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -115,7 +115,7 @@ PrivateData = @{
         ProjectUri = 'https://github.com/Azure/BlobNFS-wsl2'
 
         # A URL to an icon representing this module.
-        # IconUri = ''
+        # IconUri = 'https://code.benco.io/icon-collection/logos/azure-offical.svg'
 
         # ReleaseNotes of this module
         # ReleaseNotes = ''
