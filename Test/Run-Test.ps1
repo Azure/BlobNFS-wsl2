@@ -26,8 +26,9 @@ Write-Host "Copied the module to temp folder $tempFolder to test the module." -F
 Write-Host "You can use $tempFolder to for your other tests." -ForegroundColor Green
 
 # Refer to the manifest in the temp folder
-$ManifestPath = Join-Path $tempFolder ($ModulePath.Split("\")[-1]) ($ModulePath.Split("\")[-1] + ".psd1")
-$ScriptPath = Join-Path $tempFolder ($ModulePath.Split("\")[-1]) ($ModulePath.Split("\")[-1] + ".psm1")
+# PS 5 and below doesn't support multiple paths in Join-Path command. Hence, join the path twice.
+$ManifestPath = Join-Path $(Join-Path $tempFolder ($ModulePath.Split("\")[-1])) ($ModulePath.Split("\")[-1] + ".psd1")
+$ScriptPath = Join-Path $(Join-Path $tempFolder ($ModulePath.Split("\")[-1])) ($ModulePath.Split("\")[-1] + ".psm1")
 if(-not (Test-Path $ManifestPath) -or -not (Test-Path $ScriptPath))
 {
     Write-Error "Manifest or script of the module does not exist. Please check"
@@ -48,13 +49,32 @@ if($null -eq $analyzerInstalled)
 }
 Import-Module PSScriptAnalyzer -Force
 Write-Host "------------------ Running Script Analyzer ------------------"
-Invoke-ScriptAnalyzer -Path $ScriptPath
+
+$scriptErrors = Invoke-ScriptAnalyzer -Path $ScriptPath -Severity ParseError, Error
+if($scriptErrors.Count -gt 0)
+{
+    Write-Error "Script Analyzer found $($scriptErrors.Count) errors in the module. Please fix them before publishing the module."
+    $scriptErrors | Format-Table -AutoSize
+    exit 1
+}
+
+$scriptErrors = Invoke-ScriptAnalyzer -Path $ScriptPath -Severity Warning, Information
+if($scriptErrors.Count -gt 0)
+{
+    Write-Warning "Script Analyzer found $($scriptErrors.Count) warnings in the module. Please fix them before publishing the module."
+    $scriptErrors | Format-Table -AutoSize
+}
+
 Write-Host "------------------ Script Analyzer completed ------------------" -ForegroundColor Green
 
 # Import the module for external usage
 Write-Host "------------------ Importing the module for your usage ------------------"
 Import-Module -Name $ManifestPath -Force
 Write-Host "------------------ Imported the module for your usage ------------------" -ForegroundColor Green
+
+# Get Scheduled job logs
+Write-Host "------------------ Getting Scheduled job logs ------------------"
+$jobop = "$env:UserProfile\AppData\Local\Microsoft\Windows\PowerShell\ScheduledJobs\AutoMountWSLBlobNFS\Output"
 
 # Installation Test scenarios:
 # WSL core installation

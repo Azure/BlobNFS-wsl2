@@ -20,7 +20,7 @@ RootModule = 'WSLBlobNFS.psm1'
 # To-do:
 # 1. Proper versioning of the script.
 # 2. Automate the versioning and release process.
-ModuleVersion = '1.0.11'
+ModuleVersion = '1.0.26'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -79,7 +79,7 @@ Description = 'Azure Blob NFS'
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
 # Export functions defined in wsindowsblobnfs.ps1
 # Exported functions will auto-complete on the command line even if the module is not yet loaded.
-FunctionsToExport = @('Install-WSLBlobNFS', 'Initialize-WSLBlobNFS', 'Mount-WSLBlobNFS', 'Dismount-WSLBlobNFS')
+FunctionsToExport = @('Install-WSLBlobNFS', 'Initialize-WSLBlobNFS', 'Mount-WSLBlobNFS', 'Dismount-WSLBlobNFS', 'Assert-PipelineWSLBlobNFS', 'Register-AutoMountWSLBlobNFS')
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = @()
@@ -106,7 +106,7 @@ PrivateData = @{
     PSData = @{
 
         # Tags applied to this module. These help with module discovery in online galleries.
-        Tags = @('windows', 'azure', 'storage', 'wsl2', 'automation', 'cloud', 'automation')
+        Tags = @('windows', 'azure', 'storage', 'wsl2', 'automation', 'cloud', 'automation', 'nfsv3')
 
         # A URL to the license for this module.
         LicenseUri = 'https://mit-license.org/'
@@ -115,7 +115,7 @@ PrivateData = @{
         ProjectUri = 'https://github.com/Azure/BlobNFS-wsl2'
 
         # A URL to an icon representing this module.
-        # IconUri = ''
+        # IconUri = 'https://code.benco.io/icon-collection/logos/azure-offical.svg'
 
         # ReleaseNotes of this module
         # ReleaseNotes = ''
@@ -134,7 +134,7 @@ PrivateData = @{
 } # End of PrivateData hashtable
 
 # HelpInfo URI of this module
-# HelpInfoURI = 'https://github.com/Azure/BlobNFS-wsl2'
+HelpInfoURI = 'https://github.com/Azure/BlobNFS-wsl2'
 
 # Default prefix for commands exported from this module. Override the default prefix using Import-Module -Prefix.
 # DefaultCommandPrefix = ''
