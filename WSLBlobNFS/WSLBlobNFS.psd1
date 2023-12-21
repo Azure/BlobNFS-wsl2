@@ -20,7 +20,8 @@ RootModule = 'WSLBlobNFS.psm1'
 # To-do:
 # 1. Proper versioning of the script.
 # 2. Automate the versioning and release process.
-ModuleVersion = '1.0.26'
+# https://learn.microsoft.com/en-us/powershell/gallery/concepts/module-prerelease-support?view=powershellget-3.x
+ModuleVersion = '1.0.29'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -57,6 +58,9 @@ Description = 'Azure Blob NFS'
 
 # Processor architecture (None, X86, Amd64) required by this module
 # ProcessorArchitecture = ''
+# Multiple valeus are not allowed:
+# https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_module_manifests?view=powershell-5.1
+# ProcessorArchitecture = 'X86', 'x86'
 
 # Modules that must be imported into the global environment prior to importing this module
 # RequiredModules = @()
@@ -115,13 +119,14 @@ PrivateData = @{
         ProjectUri = 'https://github.com/Azure/BlobNFS-wsl2'
 
         # A URL to an icon representing this module.
-        # IconUri = 'https://code.benco.io/icon-collection/logos/azure-offical.svg'
+        IconUri = 'https://code.benco.io/icon-collection/logos/azure-offical.svg'
 
         # ReleaseNotes of this module
         # ReleaseNotes = ''
 
         # Prerelease string of this module
-        # Prerelease = ''
+        # https://www.alexvanwolferen.nl/sitecore-10-2-0-docker-allowprerelease/
+        # Prerelease = 'beta'
 
         # Flag to indicate whether the module requires explicit user acceptance for install/update/save
         # RequireLicenseAcceptance = $false

@@ -29,6 +29,8 @@ This PS module majorly has two components:
 
 1. This module requires WSL2.  
 
+1. This module is currently only supported on Powershell Desktop and not on Powershell Core (PS 7).
+
 1. WSL2 is available only on 64 bit machines. Further, only use 64 bit version of the Powershell to use the module.  
 
 1. WSL2 features needed by this module are available only on Windows 10, version 2004 or higher, and Windows Server 2022, version 2009 or higher. Check [here](https://learn.microsoft.com/en-us/windows/wsl/install#prerequisites) for more details.  
@@ -101,7 +103,7 @@ Mount-WSLBlobNFS -RemoteMount "<account-name>.blob.core.windows.net:/<account-na
 6. To remount all the previously mapped SMB shares after a Windows restart:  
 
 ```powershell
-Asert-PipelineWSLBlobNFS
+Assert-PipelineWSLBlobNFS
 ```
 
 You can check the status of the mount by running the following command:  

@@ -11,9 +11,12 @@
 set -u
 export DEBIAN_FRONTEND=noninteractive
 
-RED="\e[2;31m"
-GREEN="\e[2;32m"
-YELLOW="\e[2;33m"
+# Escape sequences for colored output in console.
+# See https://misc.flogisoft.com/bash/tip_colors_and_formatting for more details.
+# https://www.linuxjournal.com/article/8603
+RED="\e[1;31m"
+GREEN="\e[1;32m"
+YELLOW="\e[1;33m"
 NORMAL="\e[0m"
 
 #
