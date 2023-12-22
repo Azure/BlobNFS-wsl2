@@ -21,7 +21,7 @@ RootModule = 'WSLBlobNFS.psm1'
 # 1. Proper versioning of the script.
 # 2. Automate the versioning and release process.
 # https://learn.microsoft.com/en-us/powershell/gallery/concepts/module-prerelease-support?view=powershellget-3.x
-ModuleVersion = '1.0.32'
+ModuleVersion = '1.0.33'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
