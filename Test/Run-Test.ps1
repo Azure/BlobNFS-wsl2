@@ -9,7 +9,7 @@
 #
 param(
     [Parameter(Mandatory=$false)]
-    [string]$ModulePath = ".\WSLBlobNFS"
+    [string]$ModulePath = "C:\Users\shankarmb\Desktop\txt\BlobNFS-wsl2\WSLBlobNFS"
 )
 
 if(-not (Test-Path $ModulePath))
