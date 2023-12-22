@@ -37,7 +37,6 @@
 # Throw an error if any cmdlet, function, or command fails or a variable is unknown and stop the script execution.
 Set-PSDebug -Strict
 Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
 
 # WSL distro name and user name
 $distroName = "Ubuntu-22.04"
@@ -234,7 +233,7 @@ function Install-WSL2
 
     if($isWSLsuppported -eq $false)
     {
-        Write-ErrorLog "Your Windows version - $winEdition ($windowsVersion) - does not support WSL2. Please upgrade to Windows 10 version 2004 or higher or Windows Server 2022 version 2009 or higher."
+        Write-ErrorLog "Your Windows version - $winEdition ($windowsVersion) - does not support WSL2 commands used by this module. Please check Prerequisites section of the module for help."
         $global:LastExitCode = 1
         return
     }
@@ -244,11 +243,7 @@ function Install-WSL2
     # https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service
     $azureVmInfo = $(Invoke-RestMethod -Headers @{"Metadata"="true"} -Method GET -Proxy $Null -Uri "http://169.254.169.254/metadata/instance?api-version=2021-01-01" -TimeoutSec 3) 2>&1
 
-    if($azureVmInfo -match "timed out")
-    {
-        Write-Verbose "This is not an Azure VM. Skipping virtualization check."
-    }
-    else
+    if ($azureVmInfo -match "compute")
     {
         Write-Output "This is an Azure VM. Checking virtualization status..."
 
@@ -264,6 +259,10 @@ function Install-WSL2
             $global:LastExitCode = 1
             return
         }
+    }
+    else
+    {
+        Write-Output "This is not an Azure VM. Skipping virtualization check."
     }
 
     # WSL version check.

@@ -2,15 +2,15 @@
 
 ## Overview
 
-This project is a collection of PS commands to help you mount Azure Blob NFS storage containers via a Windows Subsystem for Linux (WSL). It provides commands to seemlessly install all the required components and mount and unmount your containers within Windows. With this setup, you can access your containers from Windows Explorer and any other Windows applications.  
+This project is a collection of PowerShell commands to assist in mounting of Azure Blob NFS storage containers through the Windows Subsystem for Linux (WSL) in Windows. It offers seamless installation of all necessary components and enables the mounting and unmounting of containers within the Windows environment. With this setup, you can conveniently access your containers from Windows Explorer and other Windows applications.  
 
 Here a list of components that is installed by this module:
 
-- WSL2,
-- Ubuntu distro,
-- Systemd,
-- NFS,
-- Samba.  
+- WSL2: To run Linux on Windows,
+- Ubuntu distro: To mount the blob nfs storage container on Windows,
+- Systemd: To run NFS client and Samba server as services,
+- NFS: To mount the blob nfs storage container on WSL,
+- Samba: To export the mounted container to Windows.  
 
 Samba is used to export the WSL mounted container to Windows since accessing the mounted container directly from Windows using the native filesystem is seen to provide lower performance.
 
@@ -33,7 +33,7 @@ This PS module majorly has two components:
 
 1. WSL2 is available only on 64 bit machines. Further, only use 64 bit version of the Powershell to use the module.  
 
-1. WSL2 features needed by this module are available only on Windows 10, version 2004 or higher, and Windows Server 2022, version 2009 or higher. Check [here](https://learn.microsoft.com/en-us/windows/wsl/install#prerequisites) for more details.  
+1. WSL2 features needed by this module are available only on Windows 10, version 2004 or higher, and Windows Server 2022, version 2009 or higher. Check [here](https://learn.microsoft.com/en-us/windows/wsl/install#prerequisites) on how to install WSL2 manually on older versions of Windows.  
 
 1. WSL2 requires virtualization. Please select a machine that supports virtualization.  
 

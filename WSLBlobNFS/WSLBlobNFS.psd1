@@ -21,7 +21,7 @@ RootModule = 'WSLBlobNFS.psm1'
 # 1. Proper versioning of the script.
 # 2. Automate the versioning and release process.
 # https://learn.microsoft.com/en-us/powershell/gallery/concepts/module-prerelease-support?view=powershellget-3.x
-ModuleVersion = '1.0.29'
+ModuleVersion = '1.0.33'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -39,7 +39,7 @@ CompanyName = 'Azure Blob NFS'
 Copyright = '(c) 2023 Azure Blob NFS. All rights reserved.'
 
 # Description of the functionality provided by this module
-Description = 'Azure Blob NFS'
+Description = 'This project is a collection of PS commands to assist in mounting of Azure Blob NFS storage containers through the WSL in Windows.'
 
 # Minimum version of the PowerShell engine required by this module
 # PowerShellVersion = ''
