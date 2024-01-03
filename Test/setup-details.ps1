@@ -23,6 +23,9 @@ param(
 # Output results to file
 $filePath = "wslblobnfs-setup-details.txt"
 
+# Azure VM details
+$azureVmInfo = $(Invoke-RestMethod -Headers @{"Metadata"="true"} -Method GET -Proxy $Null -Uri "http://169.254.169.254/metadata/instance?api-version=2021-01-01" -TimeoutSec 3) 2>&1
+
 # Collect system info
 Write-Host "Collecting system info."
 $systemInfo = Get-ComputerInfo | Out-String
@@ -38,10 +41,14 @@ $wslInfo2Status = $LastExitCode
 Write-Host "Collecting PowerShell details."
 $psVersion = $PSVersionTable | Out-String
 
+Write-Host "Collecting the list of users on wsl."
+$wslUsers = wsl.exe -d Ubuntu-22.04 -- cat /etc/passwd 2>&1 | Out-String
+
 # Log the details
-"SystemInfo: $systemInfo `nwslDistro: $wslInfo1 `nwslInfo1Status: $wslInfo1Status `nwslVersion: $wslInfo2 `nwslInfo2Status:$wslInfo2Status `n$psVersion `n" | Out-File $winTempFilePath
+"AzureVmInfo: $azureVmInfo `nSystemInfo: $systemInfo `nwslDistro: $wslInfo1 `nwslInfo1Status: $wslInfo1Status `nwslVersion: $wslInfo2 `nwslInfo2Status: $wslInfo2Status `n$psVersion `nwslUsers: $wslUsers" | Out-File $winTempFilePath
 
 Write-Host "Please share the following diagnostic file with the Azure Support team $filePath."
+
 # # Install fio
 # Write-Host "Downloading fio."
 # Invoke-WebRequest -Uri https://github.com/axboe/fio/releases/download/fio-3.36/fio-3.36-x64.msi -OutFile fio-3.36-x64.msi
