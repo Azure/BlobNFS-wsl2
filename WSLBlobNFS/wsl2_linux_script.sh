@@ -562,6 +562,9 @@ function check_mount
         return 1
     fi
 
+    vecho "Both the mount path and the path in the mount command match: $mntpath and $mountpathfromcmd"
+    vecho "Checking if Blob NFS share $smbsharename is mounted.."
+
     mountpoint $mntpath > /dev/null 2>&1
 
     # If Blob NFS share is not mounted, then mount it
