@@ -656,7 +656,7 @@ function Assert-PipelineWSLBlobNFS-Internal
 
             Get-SmbMapping -LocalPath $mountDrive
 
-            Write-Success "The $mountDrive is mounted in WSL $distroName via $smbexportname SMB share."
+            Write-Success "Mounting SMB share done. Now, you can access the share from $mountDrive."
         }
     }
 }

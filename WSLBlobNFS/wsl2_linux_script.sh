@@ -553,11 +553,17 @@ function check_mount
     mountpathfromcmd=${nametokens[-1]}
     remotehost=${nametokens[-2]}
 
+    # replace ' with empty string
+    mntpath=${mntpath//\'/}
+    mountpathfromcmd=${mountpathfromcmd//\'/}
     # Mount paths from the mount command and smb.conf should match
-    if [[ $mntpath == $mountpathfromcmd ]]; then
-        eecho "SMB conf is corrupted. Mismatch between the mount path and the path in the mount command."
+    if [[ ! ($mntpath -ef $mountpathfromcmd) ]]; then
+        eecho "SMB conf is corrupted. Mismatch between the mount path and the path in the mount command: $mntpath, $mountpathfromcmd"
         return 1
     fi
+
+    vecho "Both the mount path and the path in the mount command match: $mntpath and $mountpathfromcmd"
+    vecho "Checking if Blob NFS share $smbsharename is mounted.."
 
     mountpoint $mntpath > /dev/null 2>&1
 
