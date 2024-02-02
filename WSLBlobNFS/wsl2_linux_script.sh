@@ -122,6 +122,22 @@ function install_nfs ()
     vecho $op
 }
 
+# Install AzNFS
+function install_aznfs ()
+{
+    export AZNFS_NONINTERACTIVE_INSTALL=1
+    export DEBIAN_FRONTEND=noninteractive
+    op=$(wget -O - -q https://github.com/Azure/AZNFS-mount/releases/latest/download/aznfs_install.sh | bash 2>&1)
+
+    if [[ $? != 0 ]]; then
+        eecho "Failed to install Az-NFS: $op"
+        return 1
+    fi
+
+    vecho "Az-NFS installation output:"
+    vecho $op
+}
+
 # Install Samba
 function install_samba ()
 {
@@ -283,7 +299,7 @@ function mount_share ()
     mountCommand=""
 
     if [[ $mountparametertype == "command" ]]; then
-        # MountCommand: mount -t nfs -o nolock,vers=3,proto=tcp <account-name>.blob.core.windows.net:/<account-name>/<container-name> /mnt/<path>
+        # MountCommand: mount -t aznfs -o nolock,vers=3,proto=tcp <account-name>.blob.core.windows.net:/<account-name>/<container-name> /mnt/<path>
         mountCommand=$mountparameter
         vecho "Mount command is: $mountCommand"
 
@@ -330,7 +346,7 @@ function mount_share ()
         mkdir -p "$mountpath"
         vecho "Created $mountpath"
 
-        mountCommand="mount -t nfs -o nolock,vers=3,proto=tcp $mountparameter '$mountpath'"
+        mountCommand="mount -t aznfs -o nolock,vers=3,proto=tcp $mountparameter '$mountpath'"
         shareName="nfsv3share-$randomnumber"
     fi
 
@@ -597,6 +613,11 @@ elif [[ $1 == "installnfssmb" ]]; then
     apt-get update > /dev/null
 
     install_nfs
+    if [[ $? != 0 ]]; then
+        exit 1
+    fi
+
+    install_aznfs
     if [[ $? != 0 ]]; then
         exit 1
     fi

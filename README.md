@@ -10,6 +10,7 @@ Here a list of components that is installed by this module:
 - Ubuntu distro: To mount the blob nfs storage container on Windows,
 - Systemd: To run NFS client and Samba server as services,
 - NFS: To mount the blob nfs storage container on WSL,
+- AzNFS: AZNFS mount helper on Linux to improve the reliability of the Azure BlobNFS mounts,
 - Samba: To export the mounted container to Windows.  
 
 Samba is used to export the WSL mounted container to Windows since accessing the mounted container directly from Windows using the native filesystem is seen to provide lower performance.
