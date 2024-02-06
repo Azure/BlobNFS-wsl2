@@ -535,32 +535,32 @@ function Initialize-WSLBlobNFS-Internal
     # https://github.com/microsoft/WSL/issues/10138
     wsl -d $distroName --exec dbus-launch true
 
-    # Install NFS, AzNFS, & Samba
+    # Install NFS, AZNFS, & Samba
     Invoke-WSL "dpkg -s nfs-common samba aznfs > /dev/null 2>&1"
     if($LastExitCode -eq 0 -and !$Force)
     {
-        Write-Verbose "NFS, AzNFS, & Samba are already installed. Skipping their installation."
+        Write-Verbose "NFS, AZNFS, & Samba are already installed. Skipping their installation."
     }
     else
     {
         $initialized = $true
         if($Force)
         {
-            Write-Output "Force parameter is provided. Installing NFS, AzNFS, & Samba again..."
+            Write-Output "Force parameter is provided. Installing NFS, AZNFS, & Samba again..."
         }
         else
         {
-            Write-Output "NFS, AzNFS, & Samba are not installed. Installing NFS, AzNFS, & Samba..."
+            Write-Output "NFS, AZNFS, & Samba are not installed. Installing NFS, AZNFS, & Samba..."
         }
         Invoke-WSL "'$modulePathForLinux/$wslScriptName' installnfssmb $smbUserName"
         if($LastExitCode -ne 0)
         {
-            Write-ErrorLog "Installing NFS, AzNFS, & Samba failed."
+            Write-ErrorLog "Installing NFS, AZNFS, & Samba failed."
 
             $global:LastExitCode = 1
             return
         }
-        Write-Success "Installed NFS, AzNFS, & Samba successfully!"
+        Write-Success "Installed NFS, AZNFS, & Samba successfully!"
     }
 
     if($initialized)
