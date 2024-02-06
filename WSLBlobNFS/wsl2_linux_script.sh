@@ -110,7 +110,6 @@ function install_systemd ()
 # Install NFS
 function install_nfs ()
 {
-    # To-do: Use AzNFS.
     op=$(apt-get install nfs-common -y 2>&1)
 
     if [[ $? != 0 ]]; then
@@ -119,10 +118,10 @@ function install_nfs ()
     fi
 
     vecho "NFS installation output:"
-    vecho $op
+    vecho "$op"
 }
 
-# Install AzNFS
+# Install AZNFS
 function install_aznfs ()
 {
     export AZNFS_NONINTERACTIVE_INSTALL=1
@@ -130,12 +129,12 @@ function install_aznfs ()
     op=$(wget -O - -q https://github.com/Azure/AZNFS-mount/releases/latest/download/aznfs_install.sh | bash 2>&1)
 
     if [[ $? != 0 ]]; then
-        eecho "Failed to install Az-NFS: $op"
+        eecho "Failed to install AZNFS: $op"
         return 1
     fi
 
-    vecho "Az-NFS installation output:"
-    vecho $op
+    vecho "AZNFS installation output:"
+    vecho "$op"
 }
 
 # Install Samba
@@ -149,7 +148,7 @@ function install_samba ()
     fi
 
     vecho "Samba installation output:"
-    vecho $op
+    vecho "$op"
     systemctl restart smbd
 
     if [[ $? != 0 ]]; then

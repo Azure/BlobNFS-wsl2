@@ -852,10 +852,15 @@ function Mount-WSLBlobNFS
 
     $mountParameterType = ""
 
-    $mountPattern = "mount -t aznfs"
+    $mountPattern = "mount -t"
     if($RemoteMount.Contains($mountPattern) -and $RemoteMount.IndexOf($mountPattern) -eq 0)
     {
         $mountParameterType = "command"
+        if($RemoteMount.Contains("mount -t nfs"))
+        {
+            Write-ErrorLog "NFS mounts '-t nfs' are not supported. Please use AZNFS mounts with '-t aznfs'."
+            return
+        }
     }
     else
     {
