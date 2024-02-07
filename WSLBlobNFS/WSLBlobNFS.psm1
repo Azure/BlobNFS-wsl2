@@ -535,32 +535,32 @@ function Initialize-WSLBlobNFS-Internal
     # https://github.com/microsoft/WSL/issues/10138
     wsl -d $distroName --exec dbus-launch true
 
-    # Install NFS & Samba
-    Invoke-WSL "dpkg -s nfs-common samba > /dev/null 2>&1"
+    # Install NFS, AZNFS, & Samba
+    Invoke-WSL "dpkg -s nfs-common samba aznfs > /dev/null 2>&1"
     if($LastExitCode -eq 0 -and !$Force)
     {
-        Write-Verbose "NFS & Samba are already installed. Skipping their installation."
+        Write-Verbose "NFS, AZNFS, & Samba are already installed. Skipping their installation."
     }
     else
     {
         $initialized = $true
         if($Force)
         {
-            Write-Output "Force parameter is provided. Installing NFS & Samba again..."
+            Write-Output "Force parameter is provided. Installing NFS, AZNFS, & Samba again..."
         }
         else
         {
-            Write-Output "NFS & Samba are not installed. Installing NFS & Samba..."
+            Write-Output "NFS, AZNFS, & Samba are not installed. Installing NFS, AZNFS, & Samba..."
         }
         Invoke-WSL "'$modulePathForLinux/$wslScriptName' installnfssmb $smbUserName"
         if($LastExitCode -ne 0)
         {
-            Write-ErrorLog "Installing NFS & Samba failed."
+            Write-ErrorLog "Installing NFS, AZNFS, & Samba failed."
 
             $global:LastExitCode = 1
             return
         }
-        Write-Success "Installed NFS & Samba successfully!"
+        Write-Success "Installed NFS, AZNFS, & Samba successfully!"
     }
 
     if($initialized)
@@ -774,7 +774,7 @@ function Mount-WSLBlobNFS
         Note: MountDrive parameter is optional. If not provided, the drive will be automatically assigned.
 
     .EXAMPLE
-        PS> Mount-WSLBlobNFS -RemoteMount "mount -t nfs -o nolock,vers=3,proto=tcp account.blob.preprod.core.windows.net:/account/container /mnt/nfsv3share"
+        PS> Mount-WSLBlobNFS -RemoteMount "mount -t aznfs -o nolock,vers=3,proto=tcp account.blob.preprod.core.windows.net:/account/container /mnt/nfsv3share"
         You can also provide the NFS mount command if you want to provide extra mount parameters.
         Note: MountDrive parameter is optional. If not provided, the drive will be automatically assigned.
 
@@ -852,10 +852,15 @@ function Mount-WSLBlobNFS
 
     $mountParameterType = ""
 
-    $mountPattern = "mount -t nfs"
+    $mountPattern = "mount -t"
     if($RemoteMount.Contains($mountPattern) -and $RemoteMount.IndexOf($mountPattern) -eq 0)
     {
         $mountParameterType = "command"
+        if($RemoteMount.Contains("mount -t nfs"))
+        {
+            Write-ErrorLog "NFS mounts '-t nfs' are not supported. Please use AZNFS mounts with '-t aznfs'."
+            return
+        }
     }
     else
     {
