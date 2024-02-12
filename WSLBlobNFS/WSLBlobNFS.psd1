@@ -21,7 +21,7 @@ RootModule = 'WSLBlobNFS.psm1'
 # 1. Proper versioning of the script.
 # 2. Automate the versioning and release process.
 # https://learn.microsoft.com/en-us/powershell/gallery/concepts/module-prerelease-support?view=powershellget-3.x
-ModuleVersion = '1.0.34'
+ModuleVersion = '1.1.0'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -113,16 +113,16 @@ PrivateData = @{
         Tags = @('windows', 'azure', 'storage', 'wsl2', 'automation', 'cloud', 'automation', 'nfsv3')
 
         # A URL to the license for this module.
-        LicenseUri = 'https://mit-license.org/'
+        License = 'https://mit-license.org/'
 
         # A URL to the main website for this project.
         ProjectUri = 'https://github.com/Azure/BlobNFS-wsl2'
 
         # A URL to an icon representing this module.
-        IconUri = 'https://code.benco.io/icon-collection/logos/azure-offical.svg'
+        Icon = 'https://code.benco.io/icon-collection/logos/azure-offical.svg'
 
         # ReleaseNotes of this module
-        # ReleaseNotes = ''
+        ReleaseNotes = 'https://github.com/Azure/BlobNFS-wsl2/tree/develop'
 
         # Prerelease string of this module
         # https://www.alexvanwolferen.nl/sitecore-10-2-0-docker-allowprerelease/
